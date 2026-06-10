@@ -14,7 +14,7 @@
 >
 > **Dự án này KHÔNG có liên kết, KHÔNG được phê duyệt, và KHÔNG được tài trợ bởi Zalo hay công ty VNG Corporation.**
 >
-> Zalo **không cung cấp API chính thức** cho tài khoản cá nhân và **không cho phép** tự động hóa tài khoản cá nhân theo [Điều khoản sử dụng](https://zalo.me/dieukhoan) của họ. Plugin này hoạt động bằng cách mô phỏng hành vi client thông qua thư viện không chính thức [`zca-js`](https://github.com/nicholasxuu/zca-js).
+> Zalo **không cung cấp API chính thức** cho tài khoản cá nhân và **không cho phép** tự động hóa tài khoản cá nhân theo [Điều khoản sử dụng](https://zalo.vn/dieukhoan) của họ. Plugin này hoạt động bằng cách mô phỏng hành vi client thông qua thư viện không chính thức [`zca-js`](https://github.com/nicholasxuu/zca-js).
 >
 > **Việc sử dụng plugin này có thể vi phạm Điều khoản dịch vụ của Zalo và có thể dẫn đến việc tài khoản bị khóa hoặc đình chỉ.**
 >
