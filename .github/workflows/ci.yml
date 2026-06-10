@@ -25,9 +25,11 @@ jobs:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       - run: npm ci
       - name: TypeScript syntax check
-        run: npx tsc --noEmit 2>&1; echo "TypeCheck exited with $?"
-        # Note: type errors from openclaw SDK version mismatches are expected
-        # The plugin targets the gateway-linked openclaw, not the npm published version
+        # Type errors from openclaw SDK version mismatches are expected.
+        # The plugin targets the gateway-linked openclaw, not the npm-published version.
+        # Use continue-on-error so CI stays green while flagging issues in the log.
+        run: npx tsc --noEmit 2>&1 || echo "[warn] tsc reported errors (SDK version mismatch expected — see above)"
+        continue-on-error: true
       - name: Verify imports resolve
         run: |
           node --input-type=module -e "
