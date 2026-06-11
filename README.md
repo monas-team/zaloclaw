@@ -23,7 +23,7 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 >
 > Dự án này **không có liên kết, không được phê duyệt và không được tài trợ** bởi **Zalo** hoặc **VNG Corporation**.
 >
-> Zalo không cung cấp API chính thức cho tài khoản cá nhân và **không cho phép tự động hóa tài khoản cá nhân** theo [Điều khoản dịch vụ](https://zalo.vn/dieukhoan). Plugin hoạt động thông qua thư viện reverse-engineered [`zca-js`](https://github.com/nicholasxuu/zca-js) và **có thể vi phạm ToS Zalo, dẫn đến tài khoản bị khóa hoặc đình chỉ**.
+> Zalo không cung cấp API chính thức cho tài khoản cá nhân và **không cho phép tự động hóa tài khoản cá nhân** theo [Điều khoản dịch vụ](https://zalo.vn/dieukhoan). Plugin hoạt động thông qua thư viện reverse-engineered [`zca-js`](https://zca-js.tdung.com/) và **có thể vi phạm ToS Zalo, dẫn đến tài khoản bị khóa hoặc đình chỉ**.
 >
 > Được cung cấp **"as-is"** cho mục đích nghiên cứu và tự động hóa cá nhân. **Người dùng tự chịu toàn bộ rủi ro.**
 
