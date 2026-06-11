@@ -1,6 +1,6 @@
 {
   "name": "zaloclaw",
-  "version": "2.0.4",
+  "version": "2.1.0",
   "description": "OpenClaw channel plugin for Zalo personal accounts via zca-js",
   "type": "module",
   "main": "dist/index.js",
@@ -15,6 +15,8 @@
   },
   "homepage": "https://github.com/monas-team/zaloclaw#readme",
   "keywords": [
+    "openclaw-channel",
+    "openclaw-plugin",
     "openclaw",
     "zalo",
     "chatbot",
@@ -43,6 +45,7 @@
   },
   "scripts": {
     "build": "esbuild index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:openclaw --external:sharp --packages=external",
+    "prepublishOnly": "npm run build && npm run typecheck",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -64,5 +67,20 @@
     "esbuild": "^0.28.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.4"
+  },
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "openclaw.plugin.json",
+    "index.ts",
+    "tsconfig.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

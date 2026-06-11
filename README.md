@@ -12,7 +12,7 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.2.0-7C3AED)](https://github.com/nicholasxuu/openclaw)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
-[Cài đặt](#cài-đặt) · [Tính năng](#tính-năng) · [Cấu hình](#cấu-hình) · [147 Actions](#147-actions) · [Cộng đồng](https://zalo.me/g/gigr4cnahvidpewxk74z)
+[Install (EN)](#install) · [Cài đặt (VI)](#cài-đặt) · [Tính năng](#tính-năng) · [147 Actions](#147-actions) · [Community](https://zalo.me/g/gigr4cnahvidpewxk74z)
 
 </div>
 
@@ -25,6 +25,32 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 > Zalo không cung cấp API chính thức cho tài khoản cá nhân và **không cho phép tự động hóa tài khoản cá nhân** theo [Điều khoản dịch vụ](https://zalo.vn/dieukhoan). Plugin hoạt động thông qua thư viện reverse-engineered [`zca-js`](https://github.com/nicholasxuu/zca-js) và **có thể vi phạm ToS Zalo, dẫn đến tài khoản bị khóa hoặc đình chỉ**.
 >
 > Được cung cấp **"as-is"** cho mục đích nghiên cứu và tự động hóa cá nhân. **Người dùng tự chịu toàn bộ rủi ro.**
+
+---
+
+## Install
+
+> **English quick-start.** Full Vietnamese docs below.
+
+**Via ClawHub _(recommended)_:**
+```bash
+openclaw plugins install clawhub:zaloclaw
+openclaw gateway restart
+openclaw channels login --channel zaloclaw
+```
+
+**Manual:**
+```bash
+git clone https://github.com/monas-team/zaloclaw.git ~/zaloclaw
+cd ~/zaloclaw && npm install
+openclaw plugins install --link ~/zaloclaw   # required before channels login
+openclaw gateway restart
+openclaw channels login --channel zaloclaw
+```
+
+> **Troubleshooting `channels login`:** If you see `Unsupported channel "zaloclaw"`, the plugin may not be registered yet. Run `openclaw setup` instead — it provides the same QR login flow. This typically happens when the plugin was not installed via `openclaw plugins install`.
+
+**Requirements:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Personal Zalo account
 
 ---
 
@@ -50,10 +76,12 @@ openclaw channels login --channel zaloclaw
 ```bash
 git clone https://github.com/monas-team/zaloclaw.git /path/to/zaloclaw
 cd /path/to/zaloclaw && npm install
-openclaw plugins install --link /path/to/zaloclaw
+openclaw plugins install --link /path/to/zaloclaw   # bắt buộc trước channels login
 openclaw gateway restart
 openclaw channels login --channel zaloclaw
 ```
+
+> **Lỗi `channels login`:** Nếu gặp `Unsupported channel "zaloclaw"`, chạy `openclaw setup` thay thế — cùng luồng QR, tương thích mọi phiên bản.
 
 ### Kiểm tra
 

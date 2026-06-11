@@ -4,6 +4,22 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] — 2026-06-11
+
+### Cải thiện
+- **README**: Thêm English section (bilingual EN+VI) — language toggle, quick-start, troubleshooting
+- **Channels login**: Document lỗi `Unsupported channel` và workaround (`openclaw setup`) cho mọi phiên bản OpenClaw
+- **Install flow**: Làm rõ `openclaw plugins install --link` là bắt buộc trước `channels login`; cập nhật cả cách 1 (ClawHub) và cách 2 (manual)
+- **openclaw.plugin.json**: Thêm `name`, `description`, `version`, `kind`, `homepage` cho catalog discoverability
+- **package.json**: Thêm `files`, `publishConfig`, `prepublishOnly` cho npm release; thêm keywords `openclaw-plugin`, `openclaw-channel`
+
+## [2.0.4] — 2026-06-10
+
+### Sửa lỗi
+- **CI**: Fix `tsc` step exit code — dùng `continue-on-error` cho SDK version mismatch
+- **README**: Redesign với centered header, ClawHub install, disclaimer, table of contents
+- **Metadata**: Thêm ClawHub compat metadata, sửa repo URL sang `monas-team`
+
 ## [2.0.3] — 2026-04-15
 
 ### Sửa lỗi — API contract audit (18 bugs)
