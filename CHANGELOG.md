@@ -4,6 +4,14 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.1] — 2026-06-11
+
+### Tài liệu
+- **README**: Viết lại hoàn toàn hướng dẫn cài đặt — 3 cách (ClawHub / npm / clone) cả EN lẫn VI
+- **Hướng dẫn QR**: Thêm bước quét QR (`Zalo app → trang cá nhân → icon QR`) và bước xác nhận sau login
+- **VI**: Bổ sung Cách 2 (npm) còn thiếu, Cách 3 (clone) đúng thứ tự 4 bước
+- **Troubleshooting**: Rõ hơn về `channels login` error và session expired
+
 ## [2.1.0] — 2026-06-11
 
 ### Cải thiện
