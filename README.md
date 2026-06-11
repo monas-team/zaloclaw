@@ -7,12 +7,13 @@
 Connect your personal Zalo account to an AI agent with **147 full-featured actions**.
 
 [![CI](https://github.com/monas-team/zaloclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/monas-team/zaloclaw/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/zaloclaw?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/zaloclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![ClawHub](https://img.shields.io/badge/ClawHub-zaloclaw-FF6B35)](https://clawhub.ai)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.2.0-7C3AED)](https://github.com/nicholasxuu/openclaw)
+[![ClawHub](https://img.shields.io/badge/ClawHub-zaloclaw-FF6B35)](https://clawhub.ai/plugins/zaloclaw)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.2.0-7C3AED)](https://openclaw.ai)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
-[Install (EN)](#install) · [Cài đặt (VI)](#cài-đặt) · [Tính năng](#tính-năng) · [147 Actions](#147-actions) · [Community](https://zalo.me/g/gigr4cnahvidpewxk74z)
+[EN: Install](#install) · [VI: Cài đặt](#cài-đặt) · [Tính năng](#tính-năng) · [147 Actions](#147-actions) · [💬 Community](https://zalo.me/g/gigr4cnahvidpewxk74z)
 
 </div>
 
@@ -30,16 +31,24 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 
 ## Install
 
-> **English quick-start.** Full Vietnamese docs below.
+> **⚠️ Disclaimer:** This project is **not affiliated with, endorsed by, or sponsored by Zalo or VNG Corporation.** Zalo does not provide an official API for personal accounts and [does not permit automation of personal accounts](https://zalo.vn/dieukhoan). This plugin operates via the reverse-engineered [`zca-js`](https://github.com/nicholasxuu/zca-js) library and **may violate Zalo's Terms of Service**, potentially leading to account suspension. Use at your own risk, for research and personal automation purposes only.
 
 **Via ClawHub _(recommended)_:**
 ```bash
 openclaw plugins install clawhub:zaloclaw
 openclaw gateway restart
 openclaw channels login --channel zaloclaw
+# → Scan the QR code with your Zalo app
 ```
 
-**Manual:**
+**Via npm:**
+```bash
+openclaw plugins install zaloclaw
+openclaw gateway restart
+openclaw channels login --channel zaloclaw
+```
+
+**Manual (clone):**
 ```bash
 git clone https://github.com/monas-team/zaloclaw.git ~/zaloclaw
 cd ~/zaloclaw && npm install
@@ -48,9 +57,22 @@ openclaw gateway restart
 openclaw channels login --channel zaloclaw
 ```
 
-> **Troubleshooting `channels login`:** If you see `Unsupported channel "zaloclaw"`, the plugin may not be registered yet. Run `openclaw setup` instead — it provides the same QR login flow. This typically happens when the plugin was not installed via `openclaw plugins install`.
+> **`channels login` troubleshooting:** If you see `Unsupported channel "zaloclaw"`, run `openclaw setup` instead — same QR flow, works on all OpenClaw versions. This usually means the plugin wasn't installed via `openclaw plugins install`.
 
-**Requirements:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Personal Zalo account
+**Requirements:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Personal Zalo account (not OA)
+
+### Features at a glance
+
+| Category | Highlights |
+|----------|------------|
+| 💬 **Messaging** | Text, rich text, images, files, video, voice, stickers, link preview |
+| 👥 **Groups** | Create/manage groups, admins, polls, reminders, invite links |
+| 🤝 **Friends** | Find, add, block, nicknames, online status |
+| 🤖 **AI-native** | Mention gating, image buffering, quote context, typing indicator |
+| 🔐 **Access control** | DM policy, group policy, per-user allow/deny lists |
+| ⚙️ **Automation** | Auto-reply, quick messages, auto-unsend, read receipts |
+
+Full 147-action reference: [docs/agent-help.md](docs/agent-help.md)
 
 ---
 
