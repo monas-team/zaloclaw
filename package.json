@@ -1,6 +1,6 @@
 {
   "name": "zaloclaw",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "OpenClaw channel plugin for Zalo personal accounts via zca-js",
   "type": "module",
   "main": "dist/index.js",
@@ -41,6 +41,18 @@
     "build": {
       "openclawVersion": "2026.5.7",
       "pluginSdkVersion": "2026.5.7"
+    },
+    "channel": {
+      "id": "zaloclaw",
+      "label": "ZaloClaw",
+      "selectionLabel": "ZaloClaw Account",
+      "blurb": "Zalo personal account messaging via zca-js. 147 actions for DMs, groups, friends, polls, and more.",
+      "docsPath": "/channels/zaloclaw",
+      "docsLabel": "zaloclaw",
+      "aliases": [
+        "oz"
+      ],
+      "order": 86
     }
   },
   "scripts": {

@@ -4,6 +4,11 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.2] — 2026-06-11
+
+### Sửa lỗi
+- **CRITICAL**: Thêm `openclaw.channel` vào `package.json` — thiếu field này khiến plugin bị bỏ qua hoàn toàn khỏi channel catalog, dẫn đến `channels login` luôn fail với "Unsupported channel" dù đã install đúng cách
+
 ## [2.1.1] — 2026-06-11
 
 ### Tài liệu
