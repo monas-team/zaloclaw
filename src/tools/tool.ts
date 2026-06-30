@@ -456,6 +456,19 @@ type Params = {
   [key: string]: any;
 };
 
+export function normalizeThreadTarget(p: Record<string, unknown>): { threadId?: string; isGroup?: boolean } {
+  if (typeof p.threadId === "string" && p.threadId.trim()) {
+    return { threadId: p.threadId.trim() };
+  }
+  if (typeof p.groupId === "string" && p.groupId.trim()) {
+    return { threadId: p.groupId.trim(), isGroup: true };
+  }
+  if (typeof p.userId === "string" && p.userId.trim()) {
+    return { threadId: p.userId.trim(), isGroup: false };
+  }
+  return {};
+}
+
 // ─── Execute ─────────────────────────────────────────────────────────────────
 
 export async function executeZaloClawTool(
@@ -472,6 +485,15 @@ export async function executeZaloClawTool(
 }
 
 async function dispatch(p: Params): Promise<ToolResult> {
+  const normalized = normalizeThreadTarget(p);
+  if (normalized.threadId) {
+    p = {
+      ...p,
+      threadId: normalized.threadId,
+      isGroup: p.isGroup ?? normalized.isGroup,
+    };
+  }
+
   const api = async () => getApi();
 
   switch (p.action) {

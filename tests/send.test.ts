@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { isLocalFilePath } from "../src/channel/send.js";
+import { normalizeThreadTarget } from "../src/tools/tool.js";
 
 describe("isLocalFilePath", () => {
   // Should return true for local paths
@@ -37,5 +38,30 @@ describe("isLocalFilePath", () => {
   it("returns false for plain text", () => {
     expect(isLocalFilePath("hello world")).toBe(false);
     expect(isLocalFilePath("some random text")).toBe(false);
+  });
+});
+
+describe("normalizeThreadTarget", () => {
+  it("keeps explicit threadId as the highest-priority target", () => {
+    expect(normalizeThreadTarget({
+      threadId: "  thread-1  ",
+      groupId: "group-1",
+      userId: "user-1",
+      isGroup: true,
+    })).toEqual({ threadId: "thread-1" });
+  });
+
+  it("accepts groupId as a group thread alias", () => {
+    expect(normalizeThreadTarget({ groupId: "  group-1  " })).toEqual({
+      threadId: "group-1",
+      isGroup: true,
+    });
+  });
+
+  it("accepts userId as a direct-message thread alias", () => {
+    expect(normalizeThreadTarget({ userId: "  user-1  " })).toEqual({
+      threadId: "user-1",
+      isGroup: false,
+    });
   });
 });
