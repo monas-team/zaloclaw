@@ -109,6 +109,25 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 ### Sửa lỗi
 - `isLocalFilePath` trong `send.ts` không còn khớp URL chứa chuỗi con giống path — giờ chỉ khớp đường dẫn hệ thống file thực
 
+## [2.2.0] — 2026-07-08
+
+### Tương thích
+- **Fix import paths cho OpenClaw 2026.5.7**: `openclaw/plugin-sdk/zalouser` không còn export `OpenClawConfig`, `MarkdownTableMode`, `RuntimeEnv` — di chuyển sang `plugin-sdk/config-runtime` và `plugin-sdk/runtime`
+- **Thêm `contracts.tools`** vào `openclaw.plugin.json` — bắt buộc để expose `zaloclaw` tool ra agent sessions (OpenClaw ≥2026.5)
+
+### Sửa lỗi
+- **Group reply via outbound**: `outbound.sendText/sendMedia` luôn dùng `ThreadType.User` — tin nhắn vào group ID bị gửi nhầm DM. Fix: thêm `group-id-cache.ts` — khi nhận message từ group thì cache group ID, outbound tự detect `isGroup`
+- **Typing keepalive**: thêm `setInterval` 3s ngay sau khi nhận message để cover khoảng thời gian model setup (gap giữa first typing event và typing keepalive)
+- **Reaction fallback**: thêm `lookupCliMsgId()` fallback khi `message.cliMsgId` vắng mặt trong DM events
+- **`ackReactionScope`**: đổi default thành `all` để reaction fire cả DM lẫn group
+
+### Đã xác minh
+- TypeScript typecheck: **pass** (0 errors)
+- Test suite: **104/104 passed**
+- Tương thích: OpenClaw 2026.5.7, Node.js 22+, zca-js 2.1.2
+
+---
+
 ## [2.0.0] — 2026-04-14
 
 ### Thay đổi
