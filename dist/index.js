@@ -1961,6 +1961,20 @@ ${effectiveContent}`;
     await api.sendTypingEvent(chatId, type);
   } catch {
   }
+  let preTypingDone = false;
+  const preTypingInterval = setInterval(async () => {
+    if (preTypingDone) {
+      clearInterval(preTypingInterval);
+      return;
+    }
+    try {
+      const api = await getApi();
+      const type = isGroup ? ThreadType2.Group : ThreadType2.User;
+      await api.sendTypingEvent(chatId, type);
+    } catch {
+      clearInterval(preTypingInterval);
+    }
+  }, 3e3);
   const storePath = core.channel.session.resolveStorePath(config.session?.store, {
     agentId: route.agentId
   });
@@ -2090,9 +2104,10 @@ ${bodyWithSender}`;
     })
   );
   let ackReactionPromise = null;
-  if (shouldAck && message.msgId && message.cliMsgId) {
+  const resolvedCliMsgId = message.cliMsgId ?? lookupCliMsgId(message.msgId ?? "")?.cliMsgId;
+  if (shouldAck && message.msgId && resolvedCliMsgId) {
     const ackMsgId = message.msgId;
-    const ackCliMsgId = message.cliMsgId;
+    const ackCliMsgId = resolvedCliMsgId;
     ackReactionPromise = (async () => {
       try {
         const api = await getApi();
@@ -2149,6 +2164,8 @@ ${bodyWithSender}`;
     }
   });
   const quoteForReply = getQuoteForThread(chatId);
+  preTypingDone = true;
+  clearInterval(preTypingInterval);
   try {
     await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
       ctx: ctxPayload,

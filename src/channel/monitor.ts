@@ -31,7 +31,7 @@ import { recordReadReceipt } from "../features/read-receipt.js";
 import { handleGroupEvent } from "../features/group-event.js";
 import { collectGroupMessage } from "../features/passive-collector.js";
 import { checkInjection } from "../features/injection-guard.js";
-import { recordMsgId } from "../features/msg-id-store.js";
+import { recordMsgId, lookupCliMsgId } from "../features/msg-id-store.js";
 import { refreshCredentials } from "../client/credentials.js";
 import { ThreadMessageQueue, type ThreadQueueEntry } from "./thread-queue.js";
 
@@ -804,6 +804,17 @@ async function processMessage(
     // fire-and-forget — typing failure should never block message processing
   }
 
+  // Pre-reply typing keepalive: fire every 3s to cover the model setup gap
+  let preTypingDone = false;
+  const preTypingInterval = setInterval(async () => {
+    if (preTypingDone) { clearInterval(preTypingInterval); return; }
+    try {
+      const api = await getApi();
+      const type = isGroup ? ThreadType.Group : ThreadType.User;
+      await api.sendTypingEvent(chatId, type);
+    } catch { clearInterval(preTypingInterval); }
+  }, 3000);
+
   const storePath = core.channel.session.resolveStorePath(config.session?.store, {
     agentId: route.agentId,
   });
@@ -958,9 +969,10 @@ async function processMessage(
   );
 
   let ackReactionPromise: Promise<boolean> | null = null;
-  if (shouldAck && message.msgId && message.cliMsgId) {
+  const resolvedCliMsgId = message.cliMsgId ?? lookupCliMsgId(message.msgId ?? "")?.cliMsgId;
+  if (shouldAck && message.msgId && resolvedCliMsgId) {
     const ackMsgId = message.msgId;
-    const ackCliMsgId = message.cliMsgId;
+    const ackCliMsgId = resolvedCliMsgId;
     ackReactionPromise = (async () => {
       try {
         const api = await getApi();
@@ -1012,6 +1024,10 @@ async function processMessage(
 
   // Get quote for reply-to-specific-message
   const quoteForReply = getQuoteForThread(chatId);
+
+  // Stop pre-reply typing interval — typing keepalive takes over inside dispatchReply
+  preTypingDone = true;
+  clearInterval(preTypingInterval);
 
   try {
     await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
