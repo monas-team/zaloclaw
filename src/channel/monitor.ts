@@ -1,4 +1,5 @@
-import type { OpenClawConfig, MarkdownTableMode, RuntimeEnv } from "openclaw/plugin-sdk/zalouser";
+import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
 import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
