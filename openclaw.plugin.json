@@ -2,7 +2,7 @@
   "id": "zaloclaw",
   "name": "ZaloClaw",
   "description": "Zalo personal account messaging for OpenClaw via zca-js. Connect your personal Zalo account as a fully-featured AI agent channel with 147 actions.",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "author": "monas-team",
   "license": "MIT",
   "homepage": "https://github.com/monas-team/zaloclaw",
@@ -440,7 +440,7 @@
     "onStartup": true
   },
   "compat": {
-    "pluginApi": ">=2026.2.0",
-    "minGatewayVersion": "2026.2.0"
+    "pluginApi": ">=2026.5.7",
+    "minGatewayVersion": "2026.5.7"
   }
 }
