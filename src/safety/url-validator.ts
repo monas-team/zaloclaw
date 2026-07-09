@@ -65,6 +65,18 @@ export function isPrivateIp(ip: string): boolean {
 /**
  * Validate a URL for safe outbound fetching.
  * Throws if the URL is unsafe.
+ *
+ * ⚠️  Known limitation — DNS rebinding TOCTOU race:
+ * DNS resolution is performed here (validation time), and the actual HTTP fetch
+ * happens later (use time). In the window between resolve and fetch, a malicious
+ * DNS server could return a public IP for validation, then switch to a private IP
+ * for the actual connection (DNS rebinding attack).
+ *
+ * Mitigations applied:
+ * - Short TTL window is minimized by doing validation immediately before fetch
+ * - skipSsrfCheck is only available for known-safe CDN URLs
+ * - For high-security environments, consider using a proxy with its own SSRF guard
+ *   instead of client-side DNS validation.
  */
 export async function validateUrlForOutboundFetch(rawUrl: string): Promise<URL> {
   let parsed: URL;

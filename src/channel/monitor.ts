@@ -487,6 +487,9 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
 
   if (!content.trim() && mediaUrls.length === 0) return null;
 
+  // Guard: threadId must be present — recall/system events may omit it
+  if (!data.threadId && !msg.threadId) return null;
+
   // Keep quote text metadata only. Do not treat quoted attachments as current
   // customer uploads; otherwise replying to an old image can inject stale media.
   const quote = (data as any).quote as { ownerId?: string; msg?: string; attach?: string; fromD?: string } | undefined;
@@ -1460,7 +1463,8 @@ export async function monitorZaloClawProvider(
         // passiveCollector config is hidden under plugins.entries (not channel config UI)
         const _passiveEnabled = (config as any)?.plugins?.entries?.zaloclaw?.config?.passiveCollector?.enabled === true;
         const _passiveSenderId = converted.metadata?.fromId ?? "";
-        if (_passiveEnabled && converted.metadata?.isGroup && _passiveSenderId !== selfUid) {
+        // Guard: threadId may be undefined for recall/system events — skip if missing
+        if (_passiveEnabled && converted.metadata?.isGroup && _passiveSenderId !== selfUid && converted.threadId) {
           const _shortGroupId = converted.threadId.slice(0, 13);
           collectGroupMessage({
             groupId: converted.threadId,
@@ -1473,7 +1477,8 @@ export async function monitorZaloClawProvider(
         }
 
         // Injection guard: check group messages for prompt injection before AI queue
-        if (converted.metadata?.isGroup && typeof converted.content === "string") {
+        // Guard: threadId may be absent on recall/system events — skip if missing
+        if (converted.metadata?.isGroup && typeof converted.content === "string" && converted.threadId) {
           const _injContent = converted.content;
           const _injGroupId = converted.threadId;
           const _injUserId = converted.metadata?.fromId ?? "";

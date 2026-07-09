@@ -12,7 +12,9 @@
 
 import { randomUUID } from "crypto";
 
-const ES_URL = "http://localhost:19200";
+// ES_URL can be overridden via environment variable for non-default deployments.
+// Priority: OPENCLAW_ES_URL → ES_URL → fallback localhost:19200
+const ES_URL = process.env.OPENCLAW_ES_URL ?? process.env.ES_URL ?? "http://localhost:19200";
 const INDEX = "oc_verbatim";
 
 export interface PassiveCollectorOptions {

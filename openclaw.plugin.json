@@ -2,7 +2,7 @@
   "id": "zaloclaw",
   "name": "ZaloClaw",
   "description": "Zalo personal account messaging for OpenClaw via zca-js. Connect your personal Zalo account as a fully-featured AI agent channel with 147 actions.",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "monas-team",
   "license": "MIT",
   "homepage": "https://github.com/monas-team/zaloclaw",
@@ -405,7 +405,34 @@
   },
   "configSchema": {
     "type": "object",
-    "properties": {}
+    "properties": {
+      "passiveCollector": {
+        "type": "object",
+        "description": "Settings for the passive group message collector (stores all group messages to Elasticsearch without calling AI).",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable passive collection of group messages to oc_verbatim. Default: false."
+          },
+          "esUrl": {
+            "type": "string",
+            "description": "Elasticsearch URL override. Defaults to OPENCLAW_ES_URL env var, then ES_URL, then http://localhost:19200."
+          }
+        },
+        "additionalProperties": false
+      },
+      "injectionGuard": {
+        "type": "object",
+        "description": "Settings for the prompt injection guard.",
+        "properties": {
+          "autoRemove": {
+            "type": "boolean",
+            "description": "If true, auto-remove members who exceed the injection block threshold. Default: false (warn only)."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
   },
   "contracts": {
     "tools": [

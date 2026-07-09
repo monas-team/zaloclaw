@@ -4,6 +4,28 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.0] — 2026-07-09
+
+### Sửa lỗi
+- **passive-collector**: `ES_URL` nay có thể cấu hình qua env var `OPENCLAW_ES_URL` hoặc `ES_URL` (fallback `http://localhost:19200`) — trước đây hardcoded
+- **injection-guard**: `autoRemove` mặc định `false` — chỉ cảnh báo, không tự động xóa thành viên khỏi nhóm; cần bật rõ ràng qua config
+- **monitor.ts**: Thêm null-guard cho `threadId`/`groupId` — tránh crash khi zca-js không gửi `groupId` trong một số loại sự kiện (recall, system events)
+- **openclaw.plugin.json**: Thêm `passiveCollector` và `injectionGuard` vào `configSchema`
+
+### Bảo mật
+- **url-validator.ts**: Document rõ giới hạn TOCTOU của DNS rebinding validation
+- **injection-guard.ts**: `autoRemove` mặc định `false` ngăn xóa thành viên ngoài ý muốn
+
+### Tài liệu
+- **README**: Thêm note quan trọng — sau khi cài plugin lần đầu, cần restart OpenClaw VÀ mở session chat mới (fixes issue #20)
+- **README**: Cập nhật yêu cầu OpenClaw lên `>= 2026.5.7`
+- **README**: Cập nhật version badge lên v2.3.0
+
+### Yêu cầu
+- OpenClaw >= 2026.5.7
+
+---
+
 ## [2.1.2] — 2026-06-11
 
 ### Sửa lỗi

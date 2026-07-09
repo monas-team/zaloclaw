@@ -10,7 +10,7 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 [![npm](https://img.shields.io/npm/v/zaloclaw?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/zaloclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![ClawHub](https://img.shields.io/badge/ClawHub-zaloclaw-FF6B35)](https://clawhub.ai/plugins/zaloclaw)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.2.0-7C3AED)](https://openclaw.ai)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.5.7-7C3AED)](https://openclaw.ai)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
 [EN: Install](#install) · [VI: Cài đặt](#cài-đặt) · [Tính năng](#tính-năng) · [147 Actions](#147-actions) · [💬 Community](https://zalo.me/g/gigr4cnahvidpewxk74z)
@@ -33,7 +33,7 @@ Connect your personal Zalo account to an AI agent with **147 full-featured actio
 
 > **⚠️ Disclaimer:** This project is **not affiliated with, endorsed by, or sponsored by Zalo or VNG Corporation.** Zalo does not provide an official API for personal accounts and [does not permit automation of personal accounts](https://zalo.vn/dieukhoan). This plugin uses the reverse-engineered [`zca-js`](https://github.com/nicholasxuu/zca-js) library and **may violate Zalo’s Terms of Service**, potentially leading to account suspension. Use at your own risk.
 
-**Requirements:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Personal Zalo account (not OA)
+**Requirements:** OpenClaw ≥ 2026.5.7 · Node.js ≥ 22 · Personal Zalo account (not OA)
 
 ---
 
@@ -98,6 +98,8 @@ openclaw channels login --channel zaloclaw
 
 ---
 
+> **After first install:** Restart OpenClaw AND **start a new chat session** (e.g. open a new conversation with your agent). The `zaloclaw` tool is registered at gateway startup — existing sessions won't see it until refreshed. This is a one-time step after installing the plugin.
+
 > **`channels login` not working?** If you see `Unsupported channel "zaloclaw"`, run `openclaw setup` instead — same QR flow, compatible with all OpenClaw versions.
 > This happens when the plugin was not registered via `openclaw plugins install`.
 
@@ -126,7 +128,7 @@ Zalo (~75 triệu người dùng tại Việt Nam) **không có API bot cho tài
 
 ## Cài đặt
 
-**Yêu cầu:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Tài khoản Zalo cá nhân (không phải OA)
+**Yêu cầu:** OpenClaw ≥ 2026.5.7 · Node.js ≥ 22 · Tài khoản Zalo cá nhân (không phải OA)
 
 ---
 

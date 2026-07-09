@@ -1091,7 +1091,7 @@ var ES_URL, INDEX;
 var init_passive_collector = __esm({
   "src/features/passive-collector.ts"() {
     "use strict";
-    ES_URL = "http://localhost:19200";
+    ES_URL = process.env.OPENCLAW_ES_URL ?? process.env.ES_URL ?? "http://localhost:19200";
     INDEX = "oc_verbatim";
   }
 });
@@ -1125,13 +1125,18 @@ async function checkInjection(ctx) {
   violations.set(key, record);
   ctx.log?.(`[injection-guard] attempt #${record.count} from ${ctx.userName} (${ctx.userId}) in ${ctx.groupId}`);
   if (record.count >= BLOCK_THRESHOLD) {
-    ctx.log?.(`[injection-guard] removing ${ctx.userName} from group after ${record.count} attempts`);
-    try {
-      await ctx.api.removeUserFromGroup(ctx.userId, ctx.groupId);
-    } catch (err) {
-      ctx.log?.(`[injection-guard] remove failed: ${String(err)}`);
+    const autoRemove = ctx.autoRemove ?? false;
+    if (autoRemove) {
+      ctx.log?.(`[injection-guard] removing ${ctx.userName} from group after ${record.count} attempts`);
+      try {
+        await ctx.api.removeUserFromGroup(ctx.userId, ctx.groupId);
+      } catch (err) {
+        ctx.log?.(`[injection-guard] remove failed: ${String(err)}`);
+      }
+      violations.delete(key);
+    } else {
+      ctx.log?.(`[injection-guard] BLOCK_THRESHOLD reached for ${ctx.userName} (autoRemove=false \u2014 warn only)`);
     }
-    violations.delete(key);
     return true;
   }
   if (record.count >= WARN_THRESHOLD && !record.warned) {
@@ -1734,6 +1739,7 @@ function convertToZaloClawMessage(msg) {
   }
   if (content && isSystemNotificationContent(content)) return null;
   if (!content.trim() && mediaUrls.length === 0) return null;
+  if (!data.threadId && !msg.threadId) return null;
   const quote = data.quote;
   const isGroup = msg.type === ThreadType2.Group;
   const threadId = msg.threadId;
@@ -2571,7 +2577,7 @@ async function monitorZaloClawProvider(options) {
         statusSink?.({ lastInboundAt: Date.now() });
         const _passiveEnabled = config?.plugins?.entries?.zaloclaw?.config?.passiveCollector?.enabled === true;
         const _passiveSenderId = converted.metadata?.fromId ?? "";
-        if (_passiveEnabled && converted.metadata?.isGroup && _passiveSenderId !== selfUid) {
+        if (_passiveEnabled && converted.metadata?.isGroup && _passiveSenderId !== selfUid && converted.threadId) {
           const _shortGroupId = converted.threadId.slice(0, 13);
           collectGroupMessage({
             groupId: converted.threadId,
@@ -2583,7 +2589,7 @@ async function monitorZaloClawProvider(options) {
           }).catch(() => {
           });
         }
-        if (converted.metadata?.isGroup && typeof converted.content === "string") {
+        if (converted.metadata?.isGroup && typeof converted.content === "string" && converted.threadId) {
           const _injContent = converted.content;
           const _injGroupId = converted.threadId;
           const _injUserId = converted.metadata?.fromId ?? "";

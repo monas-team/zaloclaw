@@ -87,6 +87,12 @@ export interface InjectionGuardContext {
   userName: string;
   message: string;
   log?: (msg: string) => void;
+  /**
+   * Whether to automatically remove violating members from the group.
+   * Defaults to false — warn only, never auto-kick.
+   * Set to true only if you explicitly want auto-removal behavior.
+   */
+  autoRemove?: boolean;
 }
 
 /**
@@ -105,14 +111,18 @@ export async function checkInjection(ctx: InjectionGuardContext): Promise<boolea
   ctx.log?.(`[injection-guard] attempt #${record.count} from ${ctx.userName} (${ctx.userId}) in ${ctx.groupId}`);
 
   if (record.count >= BLOCK_THRESHOLD) {
-    // Remove from group
-    ctx.log?.(`[injection-guard] removing ${ctx.userName} from group after ${record.count} attempts`);
-    try {
-      await (ctx.api as any).removeUserFromGroup(ctx.userId, ctx.groupId);
-    } catch (err) {
-      ctx.log?.(`[injection-guard] remove failed: ${String(err)}`);
+    const autoRemove = ctx.autoRemove ?? false; // default: warn only, don't auto-kick
+    if (autoRemove) {
+      ctx.log?.(`[injection-guard] removing ${ctx.userName} from group after ${record.count} attempts`);
+      try {
+        await (ctx.api as any).removeUserFromGroup(ctx.userId, ctx.groupId);
+      } catch (err) {
+        ctx.log?.(`[injection-guard] remove failed: ${String(err)}`);
+      }
+      violations.delete(key); // Reset after action
+    } else {
+      ctx.log?.(`[injection-guard] BLOCK_THRESHOLD reached for ${ctx.userName} (autoRemove=false — warn only)`);
     }
-    violations.delete(key); // Reset after action
     return true;
   }
 
