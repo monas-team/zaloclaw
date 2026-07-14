@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦞 zaloclaw
+# 🦞 zaloclaw (Tham gia nhóm tại ([Zalo Group](https://zalo.me/g/3ntfyv7urr1c2ngipp96))
 
 **Unofficial OpenClaw plugin — Zalo Personal Account Channel**
 
