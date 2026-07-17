@@ -3,6 +3,7 @@ import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { zaloClawPlugin } from "./src/channel/channel.js";
 import { setZaloClawRuntime } from "./src/runtime/runtime.js";
 import { ZaloClawToolSchema, executeZaloClawTool } from "./src/tools/tool.js";
+import { exposeBridgeService } from "./src/runtime/bridge.js";
 
 const plugin = {
   id: "zaloclaw",
@@ -13,6 +14,9 @@ const plugin = {
     setZaloClawRuntime(api.runtime);
     // Register channel plugin (for onboarding & gateway)
     api.registerChannel({ plugin: zaloClawPlugin });
+
+    // Expose bridge service for sibling plugins
+    exposeBridgeService();
 
     // Register agent tool
     api.registerTool({

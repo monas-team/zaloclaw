@@ -718,6 +718,22 @@ import * as fs5 from "fs";
 import * as path2 from "path";
 import * as crypto2 from "crypto";
 import * as os2 from "os";
+function buildZaloCookieHeader(cookie) {
+  if (!cookie) return void 0;
+  if (Array.isArray(cookie)) {
+    const pairs = cookie.map((c) => {
+      const key = c.key ?? c.name ?? "";
+      const value = c.value ?? "";
+      return key ? `${key}=${value}` : "";
+    }).filter(Boolean);
+    return pairs.length > 0 ? pairs.join("; ") : void 0;
+  }
+  if (typeof cookie === "object") {
+    const pairs = Object.entries(cookie).filter(([k]) => Boolean(k)).map(([k, v]) => `${k}=${v}`);
+    return pairs.length > 0 ? pairs.join("; ") : void 0;
+  }
+  return void 0;
+}
 function detectImageType(buffer) {
   for (const { prefix, type } of IMAGE_MAGIC_BYTES) {
     if (buffer.length >= prefix.length) {
@@ -749,10 +765,36 @@ async function downloadImageFromUrl(url, workspaceDir) {
       return void 0;
     }
     const isZaloCdn = /^https:\/\/(?:[a-z0-9-]+\.)*(?:zalo|zadn|zdn)\.(?:vn|me)\//i.test(url);
-    const { buffer, contentType } = await safeFetch(url, {
-      maxSizeBytes: MAX_IMAGE_SIZE_BYTES,
-      skipSsrfCheck: isZaloCdn
-    });
+    let buffer;
+    let contentType;
+    if (isZaloCdn) {
+      const creds = loadCredentials();
+      const cookieHeader = creds?.cookie ? buildZaloCookieHeader(creds.cookie) : void 0;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3e4);
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          redirect: "follow",
+          headers: {
+            ...cookieHeader ? { Cookie: cookieHeader } : {},
+            "User-Agent": creds?.userAgent ?? "Mozilla/5.0"
+          }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const arrayBuf = await response.arrayBuffer();
+        buffer = Buffer.from(arrayBuf);
+        contentType = response.headers.get("content-type");
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      const result = await safeFetch(url, {
+        maxSizeBytes: MAX_IMAGE_SIZE_BYTES
+      });
+      buffer = result.buffer;
+      contentType = result.contentType;
+    }
     const mimeBase = contentType?.split(";")[0]?.trim().toLowerCase();
     if (mimeBase && !ALLOWED_MIME_TYPES.has(mimeBase) && !mimeBase.startsWith("image/")) {
       console.warn(`[image-downloader] Rejected non-image content-type "${contentType}" from ${url}`);
@@ -792,6 +834,7 @@ var init_image_downloader = __esm({
   "src/channel/image-downloader.ts"() {
     "use strict";
     init_url_validator();
+    init_credentials();
     MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
     ALLOWED_EXTENSIONS = /* @__PURE__ */ new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff"]);
     ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
@@ -1519,7 +1562,7 @@ function getQuoteForThread(threadId) {
   const cached = lastInboundMessage.get(threadId);
   if (!cached) return void 0;
   return {
-    content: cached.content,
+    content: typeof cached.content === "string" ? cached.content : JSON.stringify(cached.content),
     msgType: String(cached.msgType),
     propertyExt: cached.propertyExt,
     uidFrom: cached.uidFrom,
@@ -1699,7 +1742,7 @@ function extractMediaFromObject(obj, mediaUrls, mediaTypes) {
   const title = typeof record.title === "string" ? record.title : "";
   const description = typeof record.description === "string" ? record.description : "";
   const mimeType = mediaMimeFromObject(record);
-  const photoUrl = record.hdUrl || record.normalUrl || record.oriUrl;
+  const photoUrl = record.hdUrl || record.normalUrl || record.oriUrl || record.thumbUrl;
   if (photoUrl) {
     pushMediaUrl(mediaUrls, mediaTypes, photoUrl, "image/jpeg");
   }
@@ -1738,7 +1781,7 @@ function convertToZaloClawMessage(msg) {
   }
   if (content && isSystemNotificationContent(content)) return null;
   if (!content.trim() && mediaUrls.length === 0) return null;
-  if (!data.threadId && !msg.threadId) return null;
+  if (!msg.threadId) return null;
   const quote = data.quote;
   const isGroup = msg.type === ThreadType2.Group;
   const threadId = msg.threadId;
@@ -1757,6 +1800,9 @@ function convertToZaloClawMessage(msg) {
     mediaTypes: mediaTypes.length > 0 ? mediaTypes : void 0,
     mentions: mentions ?? void 0,
     timestamp,
+    rawContent: data.content,
+    rawMsgType: typeof data.msgType === "number" ? data.msgType : 0,
+    propertyExt: data.propertyExt ?? void 0,
     quote: quote ? {
       msg: quote.msg || void 0,
       fromId: quote.ownerId || void 0,
@@ -1840,7 +1886,7 @@ async function processMessage(message, account, config, core, runtime2, statusSi
     cacheInboundMessage(threadId, {
       msgId: message.msgId,
       cliMsgId: message.cliMsgId,
-      content: typeof message.content === "string" ? message.content : "",
+      content: message.rawContent ?? message.content,
       msgType: message.rawMsgType ?? 0,
       uidFrom: metadata?.fromId ?? "",
       ts: timestamp ?? Math.floor(Date.now() / 1e3),
@@ -5895,6 +5941,23 @@ async function dispatch(p) {
   }
 }
 
+// src/runtime/bridge.ts
+function exposeBridgeService() {
+  const service = {
+    version: 1,
+    getStatus(accountId = "default") {
+      return { connected: true, accountId, channel: "zaloclaw" };
+    },
+    listActions(_accountId) {
+      return ACTIONS;
+    },
+    async executeAction(accountId, params) {
+      return executeZaloClawTool(accountId, params);
+    }
+  };
+  globalThis.__zaloclawBridgeService = service;
+}
+
 // index.ts
 var plugin = {
   id: "zaloclaw",
@@ -5904,6 +5967,7 @@ var plugin = {
   register(api) {
     setZaloClawRuntime(api.runtime);
     api.registerChannel({ plugin: zaloClawPlugin });
+    exposeBridgeService();
     api.registerTool({
       name: "zaloclaw",
       label: "ZaloClaw",

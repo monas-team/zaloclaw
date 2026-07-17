@@ -11,6 +11,33 @@ import * as path from "path";
 import * as crypto from "crypto";
 import * as os from "os";
 import { safeFetch } from "../safety/url-validator.js";
+import { loadCredentials } from "../client/credentials.js";
+
+/**
+ * Convert Zalo cookie object (array or plain object) to a cookie header string.
+ */
+function buildZaloCookieHeader(cookie: unknown): string | undefined {
+  if (!cookie) return undefined;
+  if (Array.isArray(cookie)) {
+    // Array of { key, value } objects (tough-cookie serialized format)
+    const pairs = (cookie as Array<{ key?: string; name?: string; value?: string }>)
+      .map((c) => {
+        const key = c.key ?? c.name ?? "";
+        const value = c.value ?? "";
+        return key ? `${key}=${value}` : "";
+      })
+      .filter(Boolean);
+    return pairs.length > 0 ? pairs.join("; ") : undefined;
+  }
+  if (typeof cookie === "object") {
+    // Plain key-value map
+    const pairs = Object.entries(cookie as Record<string, string>)
+      .filter(([k]) => Boolean(k))
+      .map(([k, v]) => `${k}=${v}`);
+    return pairs.length > 0 ? pairs.join("; ") : undefined;
+  }
+  return undefined;
+}
 
 /** Max image download size: 20 MB */
 const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
@@ -86,10 +113,38 @@ export async function downloadImageFromUrl(
     // Skip SSRF check for Zalo CDN URLs (they are from the Zalo API itself)
     // Strict hostname matching: must end with .zalo.vn, .zadn.vn, .zdn.vn, etc.
     const isZaloCdn = /^https:\/\/(?:[a-z0-9-]+\.)*(?:zalo|zadn|zdn)\.(?:vn|me)\//i.test(url);
-    const { buffer, contentType } = await safeFetch(url, {
-      maxSizeBytes: MAX_IMAGE_SIZE_BYTES,
-      skipSsrfCheck: isZaloCdn,
-    });
+
+    let buffer: Buffer;
+    let contentType: string | null | undefined;
+
+    if (isZaloCdn) {
+      const creds = loadCredentials();
+      const cookieHeader = creds?.cookie ? buildZaloCookieHeader(creds.cookie) : undefined;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          redirect: "follow",
+          headers: {
+            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+            "User-Agent": creds?.userAgent ?? "Mozilla/5.0",
+          },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const arrayBuf = await response.arrayBuffer();
+        buffer = Buffer.from(arrayBuf);
+        contentType = response.headers.get("content-type");
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      const result = await safeFetch(url, {
+        maxSizeBytes: MAX_IMAGE_SIZE_BYTES,
+      });
+      buffer = result.buffer;
+      contentType = result.contentType;
+    }
 
     // [FIX] Validate content-type is an image
     const mimeBase = contentType?.split(";")[0]?.trim().toLowerCase();

@@ -87,7 +87,7 @@ function consumeGroupBuffer(groupId: string): { text: string } {
 const lastInboundMessage = new Map<string, {
   msgId: string;
   cliMsgId: string;
-  content: string;
+  content: unknown;
   msgType: number;
   uidFrom: string;
   ts: number;
@@ -97,7 +97,7 @@ const lastInboundMessage = new Map<string, {
 const INBOUND_CACHE_MAX = 500;
 
 function cacheInboundMessage(threadId: string, data: {
-  msgId: string; cliMsgId: string; content: string; msgType: number;
+  msgId: string; cliMsgId: string; content: unknown; msgType: number;
   uidFrom: string; ts: number; ttl: number; propertyExt?: Record<string, unknown>;
 }): void {
   if (lastInboundMessage.size >= INBOUND_CACHE_MAX && !lastInboundMessage.has(threadId)) {
@@ -208,7 +208,7 @@ function getQuoteForThread(threadId: string): SendMessageQuote | undefined {
   const cached = lastInboundMessage.get(threadId);
   if (!cached) return undefined;
   return {
-    content: cached.content,
+    content: typeof cached.content === "string" ? cached.content : JSON.stringify(cached.content),
     msgType: String(cached.msgType),
     propertyExt: cached.propertyExt as SendMessageQuote["propertyExt"],
     uidFrom: cached.uidFrom,
@@ -438,7 +438,7 @@ function extractMediaFromObject(obj: any, mediaUrls: string[], mediaTypes: strin
 
   // Only explicit full-size photo fields count as customer image evidence.
   // A lone thumb is often a profile avatar, link preview, or system decoration.
-  const photoUrl = record.hdUrl || record.normalUrl || record.oriUrl;
+  const photoUrl = record.hdUrl || record.normalUrl || record.oriUrl || record.thumbUrl;
   if (photoUrl) {
     pushMediaUrl(mediaUrls, mediaTypes, photoUrl, "image/jpeg");
   }
@@ -488,7 +488,7 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
   if (!content.trim() && mediaUrls.length === 0) return null;
 
   // Guard: threadId must be present — recall/system events may omit it
-  if (!data.threadId && !msg.threadId) return null;
+  if (!msg.threadId) return null;
 
   // Keep quote text metadata only. Do not treat quoted attachments as current
   // customer uploads; otherwise replying to an old image can inject stale media.
@@ -518,6 +518,9 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
     mediaTypes: mediaTypes.length > 0 ? mediaTypes : undefined,
     mentions: mentions ?? undefined,
     timestamp,
+    rawContent: data.content,
+    rawMsgType: typeof (data as any).msgType === "number" ? (data as any).msgType : 0,
+    propertyExt: (data as any).propertyExt ?? undefined,
     quote: quote ? {
       msg: quote.msg || undefined,
       fromId: quote.ownerId || undefined,
@@ -629,12 +632,12 @@ async function processMessage(
     cacheInboundMessage(threadId, {
       msgId: message.msgId,
       cliMsgId: message.cliMsgId,
-      content: typeof message.content === "string" ? message.content : "",
-      msgType: (message as any).rawMsgType ?? 0,
+      content: message.rawContent ?? message.content,
+      msgType: message.rawMsgType ?? 0,
       uidFrom: metadata?.fromId ?? "",
       ts: timestamp ?? Math.floor(Date.now() / 1000),
       ttl: 0,
-      propertyExt: (message as any).propertyExt,
+      propertyExt: message.propertyExt,
     });
   }
 

@@ -132,7 +132,7 @@ function extractMemberIds(groupInfo: any): string[] {
 
 // ─── Actions list ────────────────────────────────────────────────────────────
 
-const ACTIONS = [
+export const ACTIONS = [
   // Messaging
   "send",
   "send-styled",

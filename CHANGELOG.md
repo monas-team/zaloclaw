@@ -4,6 +4,17 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.0] — 2026-07-17
+
+### Sửa lỗi
+- **quote-reply**: Preserve `rawContent` và `rawMsgType` qua toàn bộ pipeline — trước đây `cacheInboundMessage()` luôn dùng `rawMsgType = 0` và content xử lý thay vì content gốc, khiến quote reply với ảnh bị sai
+- **image-downloader**: Truyền Zalo session cookies (từ credentials) khi fetch ảnh từ CDN Zalo — trước đây dùng `safeFetch` plain không có auth, CDN trả về trang HTML lỗi nên magic bytes validator reject; thêm fallback `thumbUrl` trong `extractMediaFromObject()`
+
+### Tính năng mới
+- **Bridge service v1**: Expose `globalThis.__zaloclawBridgeService` khi plugin register — cho phép các plugin OpenClaw khác gọi ZaloClaw actions programmatically mà không cần model turns
+
+---
+
 ## [2.4.5] — 2026-07-09
 
 ### Tài liệu

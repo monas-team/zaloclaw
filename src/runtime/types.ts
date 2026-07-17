@@ -93,4 +93,7 @@ export type ZaloClawMessage = {
     senderName?: string;
     fromId?: string;
   };
+  rawContent?: unknown;      // original msg.data.content for quote-reply
+  rawMsgType?: number;       // original msg.data.msgType for quote-reply
+  propertyExt?: Record<string, unknown>;
 };
