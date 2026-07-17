@@ -24,6 +24,7 @@ import { lookupCliMsgId } from "../features/msg-id-store.js";
 import {
   readOpenClawConfig,
   writeOpenClawConfig,
+  updateZaloClawConfig,
   addToDenyFrom,
   removeFromDenyFrom,
   addToGroupDenyUsers,
@@ -300,6 +301,11 @@ export const ACTIONS = [
   // Passive collector — local JSONL history recall
   "recall-group-history",
   "list-passive-groups",
+  // Channel control + self-update
+  "stop-channel",
+  "start-channel",
+  "restart-channel",
+  "self-update",
 ] as const;
 
 // ─── TypeBox parameter schema ────────────────────────────────────────────────
@@ -459,6 +465,39 @@ type Params = {
   action: (typeof ACTIONS)[number];
   [key: string]: any;
 };
+
+
+// ─── Channel control helpers ──────────────────────────────────────────────────
+
+async function handleChannelEnable(enable: boolean): Promise<ToolResult> {
+  try {
+    const cfg = safeReadConfig();
+    const updated = updateZaloClawConfig(cfg, { enabled: enable });
+    safeWriteConfig(updated);
+    setTimeout(() => process.kill(process.pid, "SIGUSR1"), 300);
+    return ok({ success: true, enabled: enable, message: `ZaloClaw channel ${enable ? "enabled" : "disabled"}. Gateway hot-reloading...` });
+  } catch (err) {
+    return ok({ error: true, message: `Failed to ${enable ? "enable" : "disable"} channel: ${String(err)}` });
+  }
+}
+
+async function handleSelfUpdate(): Promise<ToolResult> {
+  try {
+    const { execSync } = await import("node:child_process");
+    // dist/index.js → .. → plugin root
+    const pluginDir = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname), "..");
+    const pull = execSync("git pull origin main 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 30_000 });
+    if (pull.includes("Already up to date")) {
+      return ok({ updated: false, message: "ZaloClaw is already up to date." });
+    }
+    execSync("npm install --prefer-offline 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 120_000 });
+    execSync("npm run build 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 30_000 });
+    setTimeout(() => process.kill(process.pid, "SIGUSR1"), 500);
+    return ok({ updated: true, message: "ZaloClaw updated. Gateway hot-reloading...", output: pull.trim() });
+  } catch (err) {
+    return ok({ error: true, message: `Self-update failed: ${String(err)}` });
+  }
+}
 
 // ─── Execute ─────────────────────────────────────────────────────────────────
 
@@ -1973,6 +2012,24 @@ async function dispatch(p: Params): Promise<ToolResult> {
       const groups = listPassiveGroups();
       return ok({ count: groups.length, groups });
     }
+
+    // ── Channel control ────────────────────────────────────────────────────
+
+    case "stop-channel":
+      return handleChannelEnable(false);
+
+    case "start-channel":
+      return handleChannelEnable(true);
+
+    case "restart-channel": {
+      setTimeout(() => process.kill(process.pid, "SIGUSR1"), 300);
+      return ok({ success: true, message: "ZaloClaw gateway hot-reloading..." });
+    }
+
+    // ── Self-update ────────────────────────────────────────────────────────
+
+    case "self-update":
+      return handleSelfUpdate();
 
     default:
       return ok({ error: true, message: `Unknown action: ${p.action}` });

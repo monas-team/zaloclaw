@@ -4,6 +4,11 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.1] — 2026-07-17
+### Thêm mới
+- **stop-channel** / **start-channel** / **restart-channel** — kiểm soát kênh ZaloClaw trực tiếp từ agent tool mà không cần vào server
+- **self-update** — tự pull code mới nhất từ GitHub, rebuild và hot-reload gateway
+
 ## [2.5.0] — 2026-07-17
 
 ### Sửa lỗi

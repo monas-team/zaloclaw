@@ -1389,8 +1389,8 @@ var init_thread_queue = __esm({
         const entry = state.queue.shift();
         state.processing = true;
         this.#activeCount++;
-        const timeoutPromise = new Promise((resolve5) => {
-          const timer = setTimeout(() => resolve5("timeout"), this.#processingTimeoutMs);
+        const timeoutPromise = new Promise((resolve7) => {
+          const timer = setTimeout(() => resolve7("timeout"), this.#processingTimeoutMs);
           if (typeof timer === "object" && "unref" in timer) {
             timer.unref();
           }
@@ -2745,11 +2745,11 @@ async function monitorZaloClawProvider(options) {
       }
     }
   };
-  const runningPromise = new Promise((resolve5) => {
-    resolveRunning = resolve5;
+  const runningPromise = new Promise((resolve7) => {
+    resolveRunning = resolve7;
     abortSignal.addEventListener("abort", () => {
       stop();
-      resolve5();
+      resolve7();
     }, { once: true });
   });
   await startListener();
@@ -3012,7 +3012,7 @@ import qrcode from "qrcode-terminal";
 import { PNG } from "pngjs";
 import jsQR from "jsqr";
 async function readQRFromPNG(pngPath) {
-  return new Promise((resolve5, reject) => {
+  return new Promise((resolve7, reject) => {
     try {
       const buffer = fs2.readFileSync(pngPath);
       const png = PNG.sync.read(buffer);
@@ -3021,7 +3021,7 @@ async function readQRFromPNG(pngPath) {
         reject(new Error("Could not decode QR code from image"));
         return;
       }
-      resolve5(code.data);
+      resolve7(code.data);
     } catch (err) {
       reject(new Error(`Failed to read QR code: ${err instanceof Error ? err.message : String(err)}`));
     }
@@ -3874,10 +3874,10 @@ var zaloClawPlugin = {
           }
         }
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-        const answer = await new Promise((resolve5) => {
+        const answer = await new Promise((resolve7) => {
           rl.question("\nRestart gateway now? (Required for certificate to be recognized) [Y/n]: ", (ans) => {
             rl.close();
-            resolve5(ans);
+            resolve7(ans);
           });
         });
         const shouldRestart = !answer || answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
@@ -4017,7 +4017,7 @@ var zaloClawPlugin = {
             qrDataUrl = `data:image/png;base64,${event.data.image}`;
           }
         });
-        await new Promise((resolve5) => setTimeout(resolve5, 3e3));
+        await new Promise((resolve7) => setTimeout(resolve7, 3e3));
         if (qrDataUrl) return { qrDataUrl, message: "Scan QR code with Zalo app" };
         await loginPromise2;
         return { message: "Login completed" };
@@ -4441,7 +4441,12 @@ var ACTIONS = [
   "send-to-stranger",
   // Passive collector — local JSONL history recall
   "recall-group-history",
-  "list-passive-groups"
+  "list-passive-groups",
+  // Channel control + self-update
+  "stop-channel",
+  "start-channel",
+  "restart-channel",
+  "self-update"
 ];
 function stringEnum(values, opts = {}) {
   return Type.Unsafe({
@@ -4591,6 +4596,33 @@ var REACTION_MAP = {
 };
 function resolveReaction(raw) {
   return REACTION_MAP[raw.toLowerCase()] ?? raw;
+}
+async function handleChannelEnable(enable) {
+  try {
+    const cfg = safeReadConfig();
+    const updated = updateZaloClawConfig(cfg, { enabled: enable });
+    safeWriteConfig(updated);
+    setTimeout(() => process.kill(process.pid, "SIGUSR1"), 300);
+    return ok({ success: true, enabled: enable, message: `ZaloClaw channel ${enable ? "enabled" : "disabled"}. Gateway hot-reloading...` });
+  } catch (err) {
+    return ok({ error: true, message: `Failed to ${enable ? "enable" : "disable"} channel: ${String(err)}` });
+  }
+}
+async function handleSelfUpdate() {
+  try {
+    const { execSync } = await import("node:child_process");
+    const pluginDir = nodePath.resolve(nodePath.dirname(new URL(import.meta.url).pathname), "..");
+    const pull = execSync("git pull origin main 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 3e4 });
+    if (pull.includes("Already up to date")) {
+      return ok({ updated: false, message: "ZaloClaw is already up to date." });
+    }
+    execSync("npm install --prefer-offline 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 12e4 });
+    execSync("npm run build 2>&1", { cwd: pluginDir, encoding: "utf-8", timeout: 3e4 });
+    setTimeout(() => process.kill(process.pid, "SIGUSR1"), 500);
+    return ok({ updated: true, message: "ZaloClaw updated. Gateway hot-reloading...", output: pull.trim() });
+  } catch (err) {
+    return ok({ error: true, message: `Self-update failed: ${String(err)}` });
+  }
 }
 async function executeZaloClawTool(_callId, p, _signal) {
   try {
@@ -5936,6 +5968,18 @@ async function dispatch(p) {
       const groups = listPassiveGroups();
       return ok({ count: groups.length, groups });
     }
+    // ── Channel control ────────────────────────────────────────────────────
+    case "stop-channel":
+      return handleChannelEnable(false);
+    case "start-channel":
+      return handleChannelEnable(true);
+    case "restart-channel": {
+      setTimeout(() => process.kill(process.pid, "SIGUSR1"), 300);
+      return ok({ success: true, message: "ZaloClaw gateway hot-reloading..." });
+    }
+    // ── Self-update ────────────────────────────────────────────────────────
+    case "self-update":
+      return handleSelfUpdate();
     default:
       return ok({ error: true, message: `Unknown action: ${p.action}` });
   }
