@@ -23,7 +23,7 @@ const plugin = {
       name: "zaloclaw",
       label: "ZaloClaw",
       description:
-        "Complete Zalo personal account management via zca-js (147 actions). " +
+        "Complete Zalo personal account management via zca-js (153 actions). " +
         "Messaging: send, image, link, send-to-stranger, send-video, send-voice, send-sticker, send-card, send-bank-card, " +
         "delete-message, undo-message (recall), forward-message, add-reaction, send-typing. " +
         "Friend: find-user, send-friend-request, accept/reject-friend-request, get-sent/friend-requests, " +
@@ -48,6 +48,7 @@ const plugin = {
         "Catalogs: create/update/delete-catalog, get-catalogs, create/update/delete-product, get-products. " +
         "Block: block/unblock-user (OpenClaw), zalo-block/unblock-user (Zalo-level), block-view-feed. " +
         "Misc: search-stickers, parse-link, send-report, get-biz-account. " +
+        "Channel: stop-channel, start-channel, restart-channel, self-update. " +
         "Names are auto-resolved to IDs.",
       parameters: ZaloClawToolSchema,
       execute: executeZaloClawTool,
