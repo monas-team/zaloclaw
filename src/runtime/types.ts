@@ -94,6 +94,6 @@ export type ZaloClawMessage = {
     fromId?: string;
   };
   rawContent?: unknown;      // original msg.data.content for quote-reply
-  rawMsgType?: number;       // original msg.data.msgType for quote-reply
+  rawMsgType?: string;       // original msg.data.msgType for quote-reply (e.g. "chat.photo", "webchat")
   propertyExt?: Record<string, unknown>;
 };

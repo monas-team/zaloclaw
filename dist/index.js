@@ -770,6 +770,12 @@ async function downloadImageFromUrl(url, workspaceDir) {
     if (isZaloCdn) {
       const creds = loadCredentials();
       const cookieHeader = creds?.cookie ? buildZaloCookieHeader(creds.cookie) : void 0;
+      console.log(`[image-downloader] isZaloCdn=${isZaloCdn} url=${url.substring(0, 80)}`);
+      if (isZaloCdn && cookieHeader) {
+        console.log(`[image-downloader] Using Zalo session cookies (${cookieHeader.split(";").length} cookies)`);
+      } else if (isZaloCdn && !cookieHeader) {
+        console.warn(`[image-downloader] Zalo CDN but no cookies found \u2014 download may fail`);
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3e4);
       try {
@@ -785,6 +791,7 @@ async function downloadImageFromUrl(url, workspaceDir) {
         const arrayBuf = await response.arrayBuffer();
         buffer = Buffer.from(arrayBuf);
         contentType = response.headers.get("content-type");
+        console.log(`[image-downloader] Response status=${response.status} contentType=${contentType} size=${arrayBuf.byteLength}`);
       } finally {
         clearTimeout(timer);
       }
@@ -1490,7 +1497,7 @@ function cacheInboundMessage(threadId, data) {
     msgId: data.msgId,
     cliMsgId: data.cliMsgId,
     content: data.content,
-    msgType: data.msgType ?? 0,
+    msgType: data.msgType ?? "webchat",
     uidFrom: data.uidFrom,
     ts: data.ts,
     ttl: data.ttl ?? 0,
@@ -1562,8 +1569,8 @@ function getQuoteForThread(threadId) {
   const cached = lastInboundMessage.get(threadId);
   if (!cached) return void 0;
   return {
-    content: typeof cached.content === "string" ? cached.content : JSON.stringify(cached.content),
-    msgType: String(cached.msgType),
+    content: cached.content,
+    msgType: cached.msgType,
     propertyExt: cached.propertyExt,
     uidFrom: cached.uidFrom,
     msgId: cached.msgId,
@@ -1801,7 +1808,7 @@ function convertToZaloClawMessage(msg) {
     mentions: mentions ?? void 0,
     timestamp,
     rawContent: data.content,
-    rawMsgType: typeof data.msgType === "number" ? data.msgType : 0,
+    rawMsgType: String(data.msgType ?? "webchat"),
     propertyExt: data.propertyExt ?? void 0,
     quote: quote ? {
       msg: quote.msg || void 0,
@@ -1887,7 +1894,7 @@ async function processMessage(message, account, config, core, runtime2, statusSi
       msgId: message.msgId,
       cliMsgId: message.cliMsgId,
       content: message.rawContent ?? message.content,
-      msgType: message.rawMsgType ?? 0,
+      msgType: message.rawMsgType ?? "webchat",
       uidFrom: metadata?.fromId ?? "",
       ts: timestamp ?? Math.floor(Date.now() / 1e3),
       ttl: 0,

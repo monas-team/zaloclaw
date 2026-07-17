@@ -120,6 +120,12 @@ export async function downloadImageFromUrl(
     if (isZaloCdn) {
       const creds = loadCredentials();
       const cookieHeader = creds?.cookie ? buildZaloCookieHeader(creds.cookie) : undefined;
+      console.log(`[image-downloader] isZaloCdn=${isZaloCdn} url=${url.substring(0, 80)}`);
+      if (isZaloCdn && cookieHeader) {
+        console.log(`[image-downloader] Using Zalo session cookies (${cookieHeader.split(";").length} cookies)`);
+      } else if (isZaloCdn && !cookieHeader) {
+        console.warn(`[image-downloader] Zalo CDN but no cookies found — download may fail`);
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 30_000);
       try {
@@ -135,6 +141,7 @@ export async function downloadImageFromUrl(
         const arrayBuf = await response.arrayBuffer();
         buffer = Buffer.from(arrayBuf);
         contentType = response.headers.get("content-type");
+        console.log(`[image-downloader] Response status=${response.status} contentType=${contentType} size=${arrayBuf.byteLength}`);
       } finally {
         clearTimeout(timer);
       }

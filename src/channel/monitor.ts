@@ -88,7 +88,7 @@ const lastInboundMessage = new Map<string, {
   msgId: string;
   cliMsgId: string;
   content: unknown;
-  msgType: number;
+  msgType: string;
   uidFrom: string;
   ts: number;
   ttl: number;
@@ -97,7 +97,7 @@ const lastInboundMessage = new Map<string, {
 const INBOUND_CACHE_MAX = 500;
 
 function cacheInboundMessage(threadId: string, data: {
-  msgId: string; cliMsgId: string; content: unknown; msgType: number;
+  msgId: string; cliMsgId: string; content: unknown; msgType: string;
   uidFrom: string; ts: number; ttl: number; propertyExt?: Record<string, unknown>;
 }): void {
   if (lastInboundMessage.size >= INBOUND_CACHE_MAX && !lastInboundMessage.has(threadId)) {
@@ -108,7 +108,7 @@ function cacheInboundMessage(threadId: string, data: {
     msgId: data.msgId,
     cliMsgId: data.cliMsgId,
     content: data.content,
-    msgType: data.msgType ?? 0,
+    msgType: data.msgType ?? "webchat",
     uidFrom: data.uidFrom,
     ts: data.ts,
     ttl: data.ttl ?? 0,
@@ -208,8 +208,8 @@ function getQuoteForThread(threadId: string): SendMessageQuote | undefined {
   const cached = lastInboundMessage.get(threadId);
   if (!cached) return undefined;
   return {
-    content: typeof cached.content === "string" ? cached.content : JSON.stringify(cached.content),
-    msgType: String(cached.msgType),
+    content: cached.content as SendMessageQuote["content"],
+    msgType: cached.msgType,
     propertyExt: cached.propertyExt as SendMessageQuote["propertyExt"],
     uidFrom: cached.uidFrom,
     msgId: cached.msgId,
@@ -519,7 +519,7 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
     mentions: mentions ?? undefined,
     timestamp,
     rawContent: data.content,
-    rawMsgType: typeof (data as any).msgType === "number" ? (data as any).msgType : 0,
+    rawMsgType: String((data as any).msgType ?? "webchat"),
     propertyExt: (data as any).propertyExt ?? undefined,
     quote: quote ? {
       msg: quote.msg || undefined,
@@ -633,7 +633,7 @@ async function processMessage(
       msgId: message.msgId,
       cliMsgId: message.cliMsgId,
       content: message.rawContent ?? message.content,
-      msgType: message.rawMsgType ?? 0,
+      msgType: message.rawMsgType ?? "webchat",
       uidFrom: metadata?.fromId ?? "",
       ts: timestamp ?? Math.floor(Date.now() / 1000),
       ttl: 0,

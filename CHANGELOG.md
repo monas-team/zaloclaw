@@ -4,6 +4,13 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.3] — 2026-07-17
+### Sửa lỗi
+- **Quote-reply (critical)**: `msgType` được lưu đúng dạng string (`"chat.photo"`, `"webchat"`...) thay vì luôn là `0` — quote ảnh/sticker/file giờ hoạt động đúng
+- **Quote content**: Pass object trực tiếp cho `SendMessageQuote.content` thay vì `JSON.stringify` — tránh double-encode làm hỏng payload
+- **Image debug**: Thêm logging để trace CDN cookie usage và response status khi download ảnh từ Zalo CDN
+- **Type fix**: `ZaloClawMessage.rawMsgType` đổi từ `number` sang `string` cho đúng với `TMessage["msgType"]` của zca-js
+
 ## [2.5.1] — 2026-07-17
 ### Thêm mới
 - **stop-channel** / **start-channel** / **restart-channel** — kiểm soát kênh ZaloClaw trực tiếp từ agent tool mà không cần vào server
