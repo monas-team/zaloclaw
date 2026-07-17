@@ -1807,7 +1807,20 @@ function convertToZaloClawMessage(msg) {
     mediaTypes: mediaTypes.length > 0 ? mediaTypes : void 0,
     mentions: mentions ?? void 0,
     timestamp,
-    rawContent: data.content,
+    rawContent: (() => {
+      const msgTypeStr = String(data.msgType ?? "");
+      const MEDIA_TYPES = ["chat.photo", "chat.gif", "chat.video.msg", "share.file", "chat.sticker", "chat.doodle"];
+      if (MEDIA_TYPES.includes(msgTypeStr) && typeof data.content === "string") {
+        const trimmed = data.content.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          try {
+            return JSON.parse(trimmed);
+          } catch {
+          }
+        }
+      }
+      return data.content;
+    })(),
     rawMsgType: String(data.msgType ?? "webchat"),
     propertyExt: data.propertyExt ?? void 0,
     quote: quote ? {

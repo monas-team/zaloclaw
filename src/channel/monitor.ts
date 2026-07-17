@@ -518,7 +518,20 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
     mediaTypes: mediaTypes.length > 0 ? mediaTypes : undefined,
     mentions: mentions ?? undefined,
     timestamp,
-    rawContent: data.content,
+    rawContent: (() => {
+      // Media types need object content for zca-js prepareQMSGAttach to work correctly.
+      // string content → returns propertyExt (text only)
+      // object content → returns {...content, thumbUrl, oriUrl, normalUrl} (images)
+      const msgTypeStr = String((data as any).msgType ?? "");
+      const MEDIA_TYPES = ["chat.photo", "chat.gif", "chat.video.msg", "share.file", "chat.sticker", "chat.doodle"];
+      if (MEDIA_TYPES.includes(msgTypeStr) && typeof data.content === "string") {
+        const trimmed = (data.content as string).trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          try { return JSON.parse(trimmed); } catch { /* fall through */ }
+        }
+      }
+      return data.content;
+    })(),
     rawMsgType: String((data as any).msgType ?? "webchat"),
     propertyExt: (data as any).propertyExt ?? undefined,
     quote: quote ? {
