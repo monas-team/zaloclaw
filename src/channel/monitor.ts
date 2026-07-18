@@ -178,13 +178,18 @@ function mediaMimeFromObject(obj: Record<string, unknown>): string | undefined {
   if (raw.includes("video")) return "video/mp4";
   if (raw.includes("audio") || raw.includes("voice")) return "audio/mpeg";
   if (raw.includes("file") || raw.includes("attach")) return "application/octet-stream";
+  // Zalo share.file objects carry fileUrl/fileName/extention fields — treat as binary attachment.
+  // The numeric `type` field (e.g. 2) doesn't contain the word "file" so we detect explicitly.
+  if (typeof obj.fileUrl === "string" || typeof obj.extention === "string") return "application/octet-stream";
   return undefined;
 }
 
 function looksLikeExplicitFileObject(obj: Record<string, unknown>, url: string): boolean {
   const hasFileName = ["fileName", "filename", "name"].some((key) => typeof obj[key] === "string" && String(obj[key]).trim().length > 0);
   const hasFileSize = ["fileSize", "size"].some((key) => obj[key] !== undefined && obj[key] !== null);
-  return hasFileName || hasFileSize || GENERIC_FILE_URL_RE.test(url) || IMAGE_URL_RE.test(url);
+  // fileUrl presence is itself strong evidence this is a file attachment (Zalo share.file protocol)
+  const hasFileUrl = typeof obj.fileUrl === "string" && obj.fileUrl.trim().length > 0;
+  return hasFileName || hasFileSize || hasFileUrl || GENERIC_FILE_URL_RE.test(url) || IMAGE_URL_RE.test(url);
 }
 
 function fileSha256(filePath: string): string | undefined {
@@ -443,14 +448,39 @@ function extractMediaFromObject(obj: any, mediaUrls: string[], mediaTypes: strin
     pushMediaUrl(mediaUrls, mediaTypes, photoUrl, "image/jpeg");
   }
 
-  // href/url is accepted only when the object itself looks like a media/file attachment.
+  // File URL candidates in priority order:
+  //   1. fileUrl  — Zalo share.file binary attachments (PPTX, PDF, DOCX, etc.)
+  //   2. href     — TAttachmentContent link/file previews
+  //   3. url      — generic fallback
+  // Each is accepted only when the object itself looks like a media/file attachment.
   // This avoids treating generic link previews and friend-event assets as customer uploads.
-  const href = typeof record.href === "string" ? record.href : (typeof record.url === "string" ? record.url : "");
-  if (href && (mimeType || looksLikeExplicitFileObject(record, href))) {
-    pushMediaUrl(mediaUrls, mediaTypes, href, mimeType ?? (IMAGE_URL_RE.test(href) ? "image/jpeg" : "application/octet-stream"));
+  const urlCandidates: Array<[unknown, string]> = [
+    [record.fileUrl, "fileUrl"],
+    [record.href,    "href"],
+    [record.url,     "url"],
+  ];
+  for (const [candidate] of urlCandidates) {
+    if (typeof candidate !== "string" || !candidate.trim()) continue;
+    const trimmedUrl = candidate.trim();
+    const resolvedMime = mimeType ?? (IMAGE_URL_RE.test(trimmedUrl) ? "image/jpeg" : "application/octet-stream");
+    if (mimeType || looksLikeExplicitFileObject(record, trimmedUrl)) {
+      pushMediaUrl(mediaUrls, mediaTypes, trimmedUrl, resolvedMime);
+      break; // Only add one file URL per object
+    }
   }
 
-  return title || description || (mediaUrls.length > 0 ? "[Media attachment]" : "");
+  // Display text: prefer title/description; fall back to fileName for file attachments.
+  // Include file size when available so the agent has useful context.
+  const fileName = typeof record.fileName === "string" ? record.fileName.trim() : "";
+  if (title || description) return title || description;
+  if (fileName) {
+    const rawSize = record.fileSize ?? record.size;
+    const sizeStr = typeof rawSize === "number" && rawSize > 0
+      ? ` (${(rawSize / 1024).toFixed(0)} KB)`
+      : "";
+    return `[File: ${fileName}${sizeStr}]`;
+  }
+  return mediaUrls.length > 0 ? "[Media attachment]" : "";
 }
 
 function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
@@ -897,11 +927,11 @@ async function processMessage(
     }
   }
 
-  // Only process images in DMs or when bot was mentioned in groups
-  const shouldProcessImages = !isGroup || wasMentioned;
+  // Process media (images + files) in DMs or when bot was mentioned in groups
+  const shouldProcessMedia = !isGroup || wasMentioned;
 
   let localMediaPaths: string[] | undefined;
-  if (shouldProcessImages && message.mediaUrls && message.mediaUrls.length > 0) {
+  if (shouldProcessMedia && message.mediaUrls && message.mediaUrls.length > 0) {
     console.log(`[zaloclaw] Downloading ${message.mediaUrls.length} attachment(s) for native support...`);
     localMediaPaths = await filterAttachableMediaPaths(await downloadInboundMedia(message));
 
@@ -912,8 +942,19 @@ async function processMessage(
 
     if (localMediaPaths.length > 0) {
       console.log(`[zaloclaw] Downloaded ${localMediaPaths.length} attachment(s) → ${localMediaPaths.join(", ")}`);
+
+      // Inject file path context so the agent knows where the downloaded file lives.
+      // This is especially important for non-image attachments (PDF, PPTX, DOCX, CSV, etc.)
+      // where the file won't be auto-rendered as an image attachment.
+      const nonImagePaths = localMediaPaths.filter(
+        (p) => !IMAGE_URL_RE.test(p)
+      );
+      if (nonImagePaths.length > 0) {
+        const fileLines = nonImagePaths.map((p) => `  - ${p}`).join("\n");
+        bodyWithSender = `${bodyWithSender}\n\n[Downloaded file attachment(s) — use file path(s) below to read/analyze:\n${fileLines}]`;
+      }
     }
-  } else if (!shouldProcessImages && message.mediaUrls && message.mediaUrls.length > 0) {
+  } else if (!shouldProcessMedia && message.mediaUrls && message.mediaUrls.length > 0) {
     logVerbose(core, runtime, `Skipping ${message.mediaUrls.length} attachment(s) in group ${chatId} (not mentioned)`);
   }
 
@@ -950,11 +991,11 @@ async function processMessage(
     OriginatingTo: `'zaloclaw':${chatId}`,
     WasMentioned: wasMentioned || undefined,
     // Only attach media when mentioned (groups) or in DMs
-    MediaPaths: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths : undefined,
-    MediaPath: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths[0] : undefined,
+    MediaPaths: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths : undefined,
+    MediaPath: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths[0] : undefined,
     MediaUrls: undefined,
     MediaUrl: undefined,
-    MediaTypes: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? message.mediaTypes : undefined,
+    MediaTypes: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? message.mediaTypes : undefined,
   });
 
   await core.channel.session.recordInboundSession({
