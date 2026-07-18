@@ -721,12 +721,9 @@ async function dispatch(p: Params): Promise<ToolResult> {
 
     case "forward-message": {
       if (!p.msgId || !p.threadIds?.length) throw new Error("msgId and threadIds required");
+      if (!p.message?.trim()) throw new Error("message required — zaloclaw cannot auto-retrieve message content by msgId; pass the message text you want to forward");
       const a = await api();
-      // Note: ForwardMessagePayload does not have a msgId field.
-      // Forward sends the message text to target threads. True message forwarding
-      // requires reference metadata (ts, logSrcType, fwLvl) which msg-id-store
-      // does not currently track.
-      const payload: any = { message: p.message || "" };
+      const payload: any = { message: p.message };
       if (p.messageTtl !== undefined) payload.ttl = p.messageTtl;
       const res = await a.forwardMessage(payload, p.threadIds);
       return ok({ success: true, forwarded: res?.success, failed: res?.fail });
@@ -955,8 +952,8 @@ async function dispatch(p: Params): Promise<ToolResult> {
     }
 
     case "get-related-friend-groups": {
-      if (!p.userId) throw new Error("userId required");
-      const uid = await resolveUserId(p.userId);
+      const uid = p.userId ? await resolveUserId(p.userId) : (getCurrentUid() ?? "");
+      if (!uid) throw new Error("userId required (or login first)");
       const a = await api();
       const res = await a.getRelatedFriendGroup(uid);
       return ok({ groups: res });
@@ -1927,13 +1924,15 @@ async function dispatch(p: Params): Promise<ToolResult> {
     }
 
     case "group-mention": {
-      if (!p.groupId || p.requireMention === undefined) throw new Error("groupId and requireMention required");
+      // This action configures whether the bot requires @mention before responding in a group.
+      // To SEND a message with @mention, use send-styled with **@name** or send with mentions param.
+      if (!p.groupId || p.requireMention === undefined) throw new Error("groupId and requireMention (boolean) required — this sets whether bot requires @mention in this group; to send @mention use send-styled or send");
       const gid = await resolveGroupId(p.groupId);
       const cfg = safeReadConfig();
       safeWriteConfig(setGroupRequireMention(cfg, gid, p.requireMention));
       return ok({
         success: true, groupId: gid, requireMention: p.requireMention,
-        note: "Restart gateway for changes to take effect",
+        note: "Config updated. Restart gateway for changes to take effect.",
       });
     }
 

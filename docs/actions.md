@@ -34,7 +34,7 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | `send-bank-card` | `threadId`, `binBank`, `numAccBank`, `nameAccBank` | Thẻ ngân hàng |
 | `send-typing` | `threadId`, `isGroup` | Chỉ báo đang nhập |
 | `send-to-stranger` | `threadId`, `message` | Nhắn người chưa kết bạn |
-| `forward-message` | `msgId`, `threadIds` (array) | Chuyển tiếp đến nhiều hội thoại |
+| `forward-message` | `msgId`, `threadIds` (array), `message` (**required**) | Gửi nội dung `message` đến nhiều hội thoại. Lưu ý: không tự lookup nội dung theo msgId, phải truyền `message` |
 | `delete-message` | `msgId`, `threadId`, `isGroup` | Xóa tin nhắn (chỉ phía mình: `onlyMe: true`) |
 | `undo-message` | `msgId`, `threadId`, `isGroup` | Thu hồi tin nhắn |
 | `add-reaction` | `msgId`, `threadId`, `isGroup`, `icon` | React: `heart` `like` `haha` `wow` `cry` `angry` `none` |
@@ -59,11 +59,11 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | `check-friend-status` | `userId` | Trạng thái kết bạn |
 | `set-friend-nickname` | `userId`, `nickname` | Đặt biệt danh |
 | `remove-friend-nickname` | `userId` | Xóa biệt danh |
-| `get-online-friends` | — | Bạn đang online |
-| `get-close-friends` | — | Bạn thân |
+| `get-online-friends` | — | Bạn đang online ⚠️ API Zalo 404 — endpoint deprecated |
+| `get-close-friends` | — | Bạn thân ⚠️ API Zalo 404 — endpoint deprecated |
 | `get-friend-recommendations` | — | Gợi ý kết bạn |
 | `get-alias-list` | — | Danh sách biệt danh |
-| `get-related-friend-groups` | — | Nhóm bạn bè liên quan |
+| `get-related-friend-groups` | `userId` (optional, mặc định = tài khoản hiện tại) | Nhóm bạn bè liên quan |
 
 ---
 
@@ -94,9 +94,9 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | `block-group-member` | `groupId`, `userId` | Chặn thành viên |
 | `unblock-group-member` | `groupId`, `userId` | Bỏ chặn |
 | `get-group-members-info` | `groupId`, `memberIds` | Chi tiết thành viên |
-| `get-group-chat-history` | `groupId` | Lịch sử tin nhắn |
+| `get-group-chat-history` | `groupId` | Lịch sử tin nhắn ⚠️ API Zalo 404 — endpoint deprecated, dùng `recall-group-history` thay thế |
 | `upgrade-group-to-community` | `groupId` | Nâng cấp thành cộng đồng |
-| `group-mention` | `threadId`, `message`, `mentions` | Gửi @mention trong nhóm |
+| `group-mention` | `groupId`, `requireMention` (boolean) | **Cấu hình** xem bot có yêu cầu @mention trong nhóm hay không. Để **gửi tin nhắn** có @mention, dùng `send-styled` hoặc `send` |
 
 ---
 
@@ -166,7 +166,7 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | `remove-quick-message` | Xóa (`itemId`) |
 | `update-quick-message` | Cập nhật |
 | `list-auto-replies` | Danh sách rule auto-reply |
-| `create-auto-reply` | Tạo rule (`scope`, `keyword`, `message`, `requireMention`) |
+| `create-auto-reply` | Tạo rule (`message` **required**, `startTime` **required** ms, `endTime` **required** ms, `scope`: 0=all/1=dm/2=group, `isEnable`: true/false, `memberIds`: uid[]) |
 | `update-auto-reply` | Cập nhật rule (`replyId`) |
 | `delete-auto-reply` | Xóa rule |
 
@@ -188,7 +188,7 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | `get-avatar-list` | Danh sách avatar lưu trữ |
 | `reuse-avatar` | Dùng lại avatar cũ (`photoId`) |
 | `get-full-avatar` | Lấy URL avatar full size |
-| `get-friend-board` | Board bạn bè |
+| `get-friend-board` | `threadId` (**required** — conversationId của DM với người đó) | Board bạn bè |
 
 ---
 
@@ -248,7 +248,7 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 | Action | Mô tả |
 |--------|-------|
 | `search-stickers` | Tìm sticker theo `keyword` |
-| `search-sticker-detail` | Chi tiết sticker (`stickerCateId`) |
+| `search-sticker-detail` | `stickerId` (**required**, lấy từ kết quả `search-stickers`) | Chi tiết sticker |
 | `parse-link` | Parse metadata URL |
 | `send-report` | Báo cáo user (`reason`: 0=other·1=sensitive·2=annoy·3=fraud) |
 | `get-biz-account` | Thông tin tài khoản Business |
@@ -279,8 +279,11 @@ Tên người dùng và tên nhóm **tự động resolve** thành Zalo numeric 
 { "action": "find-user", "phoneNumber": "0987654321" }
 // → lấy userId từ kết quả → send
 
-// @mention trong nhóm
-{ "action": "group-mention", "threadId": "...", "message": "@Tên ơi", "mentions": [{ "uid": "...", "displayName": "Tên" }] }
+// Set requireMention config cho group (group-mention = config, không phải gửi tin)
+{ "action": "group-mention", "groupId": "...", "requireMention": true }
+
+// Gửi tin nhắn có @mention → dùng send-styled
+{ "action": "send-styled", "threadId": "...", "message": "**@Tên ơi** xem cái này đi", "isGroup": true }
 
 // Recall lịch sử nhóm
 { "action": "recall-group-history", "groupId": "...", "count": 30, "query": "họp" }

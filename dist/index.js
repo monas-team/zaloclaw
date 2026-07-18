@@ -4900,8 +4900,9 @@ async function dispatch(p) {
     }
     case "forward-message": {
       if (!p.msgId || !p.threadIds?.length) throw new Error("msgId and threadIds required");
+      if (!p.message?.trim()) throw new Error("message required \u2014 zaloclaw cannot auto-retrieve message content by msgId; pass the message text you want to forward");
       const a = await api();
-      const payload = { message: p.message || "" };
+      const payload = { message: p.message };
       if (p.messageTtl !== void 0) payload.ttl = p.messageTtl;
       const res = await a.forwardMessage(payload, p.threadIds);
       return ok({ success: true, forwarded: res?.success, failed: res?.fail });
@@ -5104,8 +5105,8 @@ async function dispatch(p) {
       return ok({ aliases: res });
     }
     case "get-related-friend-groups": {
-      if (!p.userId) throw new Error("userId required");
-      const uid = await resolveUserId(p.userId);
+      const uid = p.userId ? await resolveUserId(p.userId) : getCurrentUid() ?? "";
+      if (!uid) throw new Error("userId required (or login first)");
       const a = await api();
       const res = await a.getRelatedFriendGroup(uid);
       return ok({ groups: res });
@@ -5966,7 +5967,7 @@ async function dispatch(p) {
       return ok({ groupId: gid, blocked: listBlockedUsersInGroup(cfg, gid) });
     }
     case "group-mention": {
-      if (!p.groupId || p.requireMention === void 0) throw new Error("groupId and requireMention required");
+      if (!p.groupId || p.requireMention === void 0) throw new Error("groupId and requireMention (boolean) required \u2014 this sets whether bot requires @mention in this group; to send @mention use send-styled or send");
       const gid = await resolveGroupId(p.groupId);
       const cfg = safeReadConfig();
       safeWriteConfig(setGroupRequireMention(cfg, gid, p.requireMention));
@@ -5974,7 +5975,7 @@ async function dispatch(p) {
         success: true,
         groupId: gid,
         requireMention: p.requireMention,
-        note: "Restart gateway for changes to take effect"
+        note: "Config updated. Restart gateway for changes to take effect."
       });
     }
     // ── Zalo-level block ───────────────────────────────────────────────────
