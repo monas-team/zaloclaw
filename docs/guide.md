@@ -221,6 +221,37 @@ journalctl --user -u openclaw -f
 
 ## 7. Tính năng nâng cao
 
+### File Attachments — nhận và xử lý file
+
+Khi user gửi file (PDF, PPTX, DOCX, CSV, ZIP...) qua Zalo DM, plugin tự động xử lý:
+
+1. **Extract URL** từ `share.file` event payload (field `fileUrl`)
+2. **Download** về `~/.openclaw/media/inbound/` (giới hạn 50 MB)
+3. **Inject context** vào agent message:
+   ```
+   [File: document.pptx (512 KB)]
+   [Downloaded file attachment(s) — use file path(s) below to read/analyze:
+     - /home/user/.openclaw/media/inbound/2026-07-18-zalo-file-abc123.pptx]
+   ```
+4. Agent có thể dùng tool `read`, `pdf`, hoặc `exec` để phân tích ngay
+
+> **Lưu ý:** File URL từ Zalo CDN có thể hết hạn. Nếu download fail, agent vẫn nhận được metadata (tên file, size) và có thể yêu cầu user gửi lại hoặc dùng link cloud.
+
+---
+
+### Ảnh & Quoted Media
+
+**Ảnh gửi trực tiếp:** Plugin download từ Zalo CDN (kèm session cookies) và forward đến agent. Chỉ xử lý trong DM hoặc khi được @mention trong nhóm.
+
+**Ảnh trong quoted message:** Khi user quote một tin nhắn ảnh rồi gửi thêm câu hỏi, bot nhận được cả câu hỏi lẫn ảnh được quote:
+```
+[Replying to Nguyễn Văn A: "[with media]"]
+Phân tích ảnh này giúp mình
+[Downloaded file attachment(s)...]
+```
+
+---
+
 ### Passive Collector — lưu lịch sử nhóm
 
 Ghi **tất cả tin nhắn nhóm** vào file JSONL local, không tốn AI token.  

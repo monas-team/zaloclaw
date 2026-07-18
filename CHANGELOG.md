@@ -4,6 +4,33 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.6] — 2026-07-18
+
+### Sửa lỗi
+- **Build regression (critical)**: Bản v2.5.5 chỉ chạy `tsc --noEmit` mà không rebuild `dist/index.js` — plugin vẫn chạy code cũ, fix fileUrl không có hiệu lực. Giờ đã build lại đúng.
+- **Quoted image/file**: Khi user quote một tin nhắn ảnh trong Zalo rồi nhắn thêm text, bot không thấy ảnh được quote. Root cause: `data.quote.attach` chứa JSON với URL ảnh nhưng không được map vào `ZaloClawMessage.quote` và không được download.
+  - `ZaloClawMessage.quote`: thêm field `attach?: string`
+  - `convertToZaloClawMessage`: map `data.quote.attach` vào `message.quote.attach`
+  - `processMessage`: parse `quote.attach`, extract media URLs qua `extractMediaFromObject`, merge vào `message.mediaUrls` để download cùng message chính
+  - Context hiển thị `[Replying to X: "..." [with media]]` khi quote có ảnh/file
+
+## [2.5.5] — 2026-07-18
+
+### Sửa lỗi
+- **File attachments (Issue #22)**: Khi user gửi file (PPTX, PDF, DOCX, CSV...) qua Zalo DM, bot chỉ nhận được filename dạng plain text hoặc raw JSON — không có URL download, không thể xử lý file.
+  - Root cause: Zalo `share.file` protocol dùng field `fileUrl` cho download URL, nhưng `extractMediaFromObject` chỉ tìm `href`/`url` → bỏ qua hoàn toàn
+  - `extractMediaFromObject`: thêm `fileUrl` là URL candidate đầu tiên (priority: `fileUrl` → `href` → `url`)
+  - `mediaMimeFromObject`: detect `fileUrl`/`extention` fields = `application/octet-stream`; type codes số (vd: `2`) không còn bị bỏ sót
+  - `looksLikeExplicitFileObject`: `fileUrl` presence là evidence đủ mạnh để treat object là file attachment
+  - Display text: file messages giờ hiển thị `[File: tên.pptx (1234 KB)]` thay vì JSON thô hay rỗng
+  - Agent body context: sau khi download, non-image file paths được inject vào body: `[Downloaded file attachment(s) — use file path(s) below to read/analyze: /path/to/file]`
+  - Rename `shouldProcessImages` → `shouldProcessMedia` (accuracy, không thay đổi behavior)
+
+## [2.5.4] — 2026-07-17
+
+### Sửa lỗi
+- **Quote media parsing**: Parse `msg.data.content` thành object đúng cách khi `msgType` là `chat.photo`, `chat.gif`, `chat.video.msg`, `share.file` — trước đây truyền JSON string thô vào `extractMediaFromObject` thay vì parsed object, khiến ảnh trong quoted message không được nhận dạng
+
 ## [2.5.3] — 2026-07-17
 ### Sửa lỗi
 - **Quote-reply (critical)**: `msgType` được lưu đúng dạng string (`"chat.photo"`, `"webchat"`...) thay vì luôn là `0` — quote ảnh/sticker/file giờ hoạt động đúng
