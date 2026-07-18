@@ -244,13 +244,20 @@ zaloclaw { action: "self-update" }
 
 ## Hạn chế
 
-| | Vấn đề |
-|-|--------|
-| 🔴 | **Unofficial API** — có thể break khi Zalo cập nhật protocol |
-| 🟡 | **Session** — cookie hết hạn cần quét lại QR |
-| 🟡 | **Rate limit** — gửi quá nhiều có thể bị throttle |
-| 🟡 | **Đa tài khoản** — hỗ trợ về kiến trúc, chưa kiểm thử đầy đủ |
-| 🟡 | **File URL auth** — một số CDN URL Zalo có thể hết hạn trước khi download xong; nếu download fail, agent nhận được metadata (tên file, size) nhưng không có nội dung |
+| | Vấn đề | Giải pháp |
+|-|--------|----------|
+| 🔴 | **Unofficial API** — có thể break khi Zalo cập nhật protocol | Cập nhật zca-js |
+| ⛔ | `get-online-friends`, `get-close-friends` — Zalo đã xóa endpoint (404) | Không có |
+| ⛔ | `get-group-chat-history` — Zalo đã xóa endpoint (404) | Dùng `recall-group-history` |
+| ⚠️ | `add-reaction`, `undo-message` — chỉ hoạt động với tin nhắn trong **session hiện tại** | Xử lý ngay khi nhận tin |
+| ⚠️ | `forward-message` — không tự lookup nội dung theo `msgId` | Truyền `message` thủ công |
+| ⚠️ | `create-auto-reply` — Zalo giới hạn tối đa **1 rule active/account** | Xóa rule cũ trước |
+| ⚠️ | `add-quick-message` — có thể bị Zalo từ chối tùy account tier | Giới hạn phía Zalo |
+| ⚠️ | `get-biz-account` — chỉ dành cho Zalo Business account | N/A với personal |
+| 🟡 | **Session** — cookie hết hạn cần quét lại QR | `openclaw channels login --channel zaloclaw` |
+| 🟡 | **Rate limit** — gửi quá nhiều có thể bị throttle | Thêm delay giữa các lần gửi |
+| 🟡 | **Đa tài khoản** — hỗ trợ về kiến trúc, chưa kiểm thử đầy đủ | — |
+| 🟡 | **File URL auth** — CDN URL Zalo có thể hết hạn trước khi download xong | Retry hoặc dùng filePath local |
 
 ---
 
