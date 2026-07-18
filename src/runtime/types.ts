@@ -86,6 +86,7 @@ export type ZaloClawMessage = {
     fromName?: string;
     msgId?: string;
     ts?: number;
+    attach?: string;   // raw attach JSON from Zalo quote (may contain image/file URL)
   };
   metadata?: {
     isGroup: boolean;

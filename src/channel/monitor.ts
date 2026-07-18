@@ -570,6 +570,7 @@ function convertToZaloClawMessage(msg: Message): ZaloClawMessage | null {
       fromName: quote.fromD || undefined,
       msgId: (quote as any).globalMsgId ? String((quote as any).globalMsgId) : undefined,
       ts: (quote as any).ts || undefined,
+      attach: typeof quote.attach === "string" && quote.attach.trim() ? quote.attach.trim() : undefined,
     } : undefined,
     metadata: {
       isGroup,
@@ -730,9 +731,34 @@ async function processMessage(
 
   // Inject reply/quote context into the message content itself
   let effectiveContent = content.trim();
-  if (message.quote?.msg) {
+  if (message.quote?.msg || message.quote?.attach) {
     const quoteSender = message.quote.fromName || message.quote.fromId || "unknown";
-    effectiveContent = `[Replying to ${quoteSender}: "${message.quote.msg}"]\n${effectiveContent}`;
+    // Extract image/file URL from quoted message's attach field
+    let quoteMediaNote = "";
+    if (message.quote.attach) {
+      try {
+        const attachObj = JSON.parse(message.quote.attach);
+        const quoteMediaUrls: string[] = [];
+        const quoteMediaTypes: string[] = [];
+        extractMediaFromObject(attachObj, quoteMediaUrls, quoteMediaTypes);
+        if (quoteMediaUrls.length > 0) {
+          // Add quoted media to the message's mediaUrls so it gets downloaded
+          for (let i = 0; i < quoteMediaUrls.length; i++) {
+            if (!message.mediaUrls) message.mediaUrls = [];
+            if (!message.mediaTypes) message.mediaTypes = [];
+            if (!message.mediaUrls.includes(quoteMediaUrls[i])) {
+              message.mediaUrls.push(quoteMediaUrls[i]);
+              message.mediaTypes.push(quoteMediaTypes[i] ?? "image/jpeg");
+            }
+          }
+          quoteMediaNote = " [with media]";
+        }
+      } catch {
+        // attach is not valid JSON — may be plain text, ignore
+      }
+    }
+    const quoteText = message.quote.msg ? `"${message.quote.msg}"` : "[media]";
+    effectiveContent = `[Replying to ${quoteSender}: ${quoteText}${quoteMediaNote}]\n${effectiveContent}`;
   }
 
   const rawBody = effectiveContent;

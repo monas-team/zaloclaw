@@ -1543,12 +1543,14 @@ function mediaMimeFromObject(obj) {
   if (raw.includes("video")) return "video/mp4";
   if (raw.includes("audio") || raw.includes("voice")) return "audio/mpeg";
   if (raw.includes("file") || raw.includes("attach")) return "application/octet-stream";
+  if (typeof obj.fileUrl === "string" || typeof obj.extention === "string") return "application/octet-stream";
   return void 0;
 }
 function looksLikeExplicitFileObject(obj, url) {
   const hasFileName = ["fileName", "filename", "name"].some((key) => typeof obj[key] === "string" && String(obj[key]).trim().length > 0);
   const hasFileSize = ["fileSize", "size"].some((key) => obj[key] !== void 0 && obj[key] !== null);
-  return hasFileName || hasFileSize || GENERIC_FILE_URL_RE.test(url) || IMAGE_URL_RE.test(url);
+  const hasFileUrl = typeof obj.fileUrl === "string" && obj.fileUrl.trim().length > 0;
+  return hasFileName || hasFileSize || hasFileUrl || GENERIC_FILE_URL_RE.test(url) || IMAGE_URL_RE.test(url);
 }
 function fileSha256(filePath) {
   try {
@@ -1753,11 +1755,28 @@ function extractMediaFromObject(obj, mediaUrls, mediaTypes) {
   if (photoUrl) {
     pushMediaUrl(mediaUrls, mediaTypes, photoUrl, "image/jpeg");
   }
-  const href = typeof record.href === "string" ? record.href : typeof record.url === "string" ? record.url : "";
-  if (href && (mimeType || looksLikeExplicitFileObject(record, href))) {
-    pushMediaUrl(mediaUrls, mediaTypes, href, mimeType ?? (IMAGE_URL_RE.test(href) ? "image/jpeg" : "application/octet-stream"));
+  const urlCandidates = [
+    [record.fileUrl, "fileUrl"],
+    [record.href, "href"],
+    [record.url, "url"]
+  ];
+  for (const [candidate] of urlCandidates) {
+    if (typeof candidate !== "string" || !candidate.trim()) continue;
+    const trimmedUrl = candidate.trim();
+    const resolvedMime = mimeType ?? (IMAGE_URL_RE.test(trimmedUrl) ? "image/jpeg" : "application/octet-stream");
+    if (mimeType || looksLikeExplicitFileObject(record, trimmedUrl)) {
+      pushMediaUrl(mediaUrls, mediaTypes, trimmedUrl, resolvedMime);
+      break;
+    }
   }
-  return title || description || (mediaUrls.length > 0 ? "[Media attachment]" : "");
+  const fileName = typeof record.fileName === "string" ? record.fileName.trim() : "";
+  if (title || description) return title || description;
+  if (fileName) {
+    const rawSize = record.fileSize ?? record.size;
+    const sizeStr = typeof rawSize === "number" && rawSize > 0 ? ` (${(rawSize / 1024).toFixed(0)} KB)` : "";
+    return `[File: ${fileName}${sizeStr}]`;
+  }
+  return mediaUrls.length > 0 ? "[Media attachment]" : "";
 }
 function convertToZaloClawMessage(msg) {
   const data = msg.data;
@@ -1828,7 +1847,8 @@ function convertToZaloClawMessage(msg) {
       fromId: quote.ownerId || void 0,
       fromName: quote.fromD || void 0,
       msgId: quote.globalMsgId ? String(quote.globalMsgId) : void 0,
-      ts: quote.ts || void 0
+      ts: quote.ts || void 0,
+      attach: typeof quote.attach === "string" && quote.attach.trim() ? quote.attach.trim() : void 0
     } : void 0,
     metadata: {
       isGroup,
@@ -1951,9 +1971,31 @@ async function processMessage(message, account, config, core, runtime2, statusSi
   const dmPolicy2 = account.config.dmPolicy ?? "open";
   const configAllowFrom = (account.config.allowFrom ?? ["*"]).map((v) => String(v));
   let effectiveContent = content.trim();
-  if (message.quote?.msg) {
+  if (message.quote?.msg || message.quote?.attach) {
     const quoteSender = message.quote.fromName || message.quote.fromId || "unknown";
-    effectiveContent = `[Replying to ${quoteSender}: "${message.quote.msg}"]
+    let quoteMediaNote = "";
+    if (message.quote.attach) {
+      try {
+        const attachObj = JSON.parse(message.quote.attach);
+        const quoteMediaUrls = [];
+        const quoteMediaTypes = [];
+        extractMediaFromObject(attachObj, quoteMediaUrls, quoteMediaTypes);
+        if (quoteMediaUrls.length > 0) {
+          for (let i = 0; i < quoteMediaUrls.length; i++) {
+            if (!message.mediaUrls) message.mediaUrls = [];
+            if (!message.mediaTypes) message.mediaTypes = [];
+            if (!message.mediaUrls.includes(quoteMediaUrls[i])) {
+              message.mediaUrls.push(quoteMediaUrls[i]);
+              message.mediaTypes.push(quoteMediaTypes[i] ?? "image/jpeg");
+            }
+          }
+          quoteMediaNote = " [with media]";
+        }
+      } catch {
+      }
+    }
+    const quoteText = message.quote.msg ? `"${message.quote.msg}"` : "[media]";
+    effectiveContent = `[Replying to ${quoteSender}: ${quoteText}${quoteMediaNote}]
 ${effectiveContent}`;
   }
   const rawBody = effectiveContent;
@@ -2112,9 +2154,9 @@ ${bodyWithSender}`;
       }
     }
   }
-  const shouldProcessImages = !isGroup || wasMentioned;
+  const shouldProcessMedia = !isGroup || wasMentioned;
   let localMediaPaths;
-  if (shouldProcessImages && message.mediaUrls && message.mediaUrls.length > 0) {
+  if (shouldProcessMedia && message.mediaUrls && message.mediaUrls.length > 0) {
     console.log(`[zaloclaw] Downloading ${message.mediaUrls.length} attachment(s) for native support...`);
     localMediaPaths = await filterAttachableMediaPaths(await downloadInboundMedia(message));
     if (localMediaPaths.length > 0 && rawBody) {
@@ -2122,8 +2164,18 @@ ${bodyWithSender}`;
     }
     if (localMediaPaths.length > 0) {
       console.log(`[zaloclaw] Downloaded ${localMediaPaths.length} attachment(s) \u2192 ${localMediaPaths.join(", ")}`);
+      const nonImagePaths = localMediaPaths.filter(
+        (p) => !IMAGE_URL_RE.test(p)
+      );
+      if (nonImagePaths.length > 0) {
+        const fileLines = nonImagePaths.map((p) => `  - ${p}`).join("\n");
+        bodyWithSender = `${bodyWithSender}
+
+[Downloaded file attachment(s) \u2014 use file path(s) below to read/analyze:
+${fileLines}]`;
+      }
     }
-  } else if (!shouldProcessImages && message.mediaUrls && message.mediaUrls.length > 0) {
+  } else if (!shouldProcessMedia && message.mediaUrls && message.mediaUrls.length > 0) {
     logVerbose(core, runtime2, `Skipping ${message.mediaUrls.length} attachment(s) in group ${chatId} (not mentioned)`);
   }
   const effectiveLocalMediaPaths = localMediaPaths && localMediaPaths.length > 0 ? localMediaPaths : void 0;
@@ -2155,11 +2207,11 @@ ${bodyWithSender}`;
     OriginatingTo: `'zaloclaw':${chatId}`,
     WasMentioned: wasMentioned || void 0,
     // Only attach media when mentioned (groups) or in DMs
-    MediaPaths: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths : void 0,
-    MediaPath: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths[0] : void 0,
+    MediaPaths: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths : void 0,
+    MediaPath: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? effectiveLocalMediaPaths[0] : void 0,
     MediaUrls: void 0,
     MediaUrl: void 0,
-    MediaTypes: shouldProcessImages && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? message.mediaTypes : void 0
+    MediaTypes: shouldProcessMedia && effectiveLocalMediaPaths && effectiveLocalMediaPaths.length > 0 ? message.mediaTypes : void 0
   });
   await core.channel.session.recordInboundSession({
     storePath,
