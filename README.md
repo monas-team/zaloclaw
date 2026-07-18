@@ -11,7 +11,7 @@ Connect your personal Zalo account to an AI agent with **153 actions**.
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.5.7-7C3AED)](https://openclaw.ai)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs)](https://nodejs.org/)
 
-[Tham gia Zalo Group hỗ trợ](https://zalo.me/g/3ntfyv7urr1c2ngipp96) · [Xem đầy đủ 153 actions](docs/actions.md) · [Hướng dẫn cài đặt](docs/guide.md)
+[Tham gia Zalo Group hỗ trợ](https://zalo.me/g/7m1vdtigpwvfpbee4rjz) · [Xem đầy đủ 153 actions](docs/actions.md) · [Hướng dẫn cài đặt](docs/guide.md)
 
 </div>
 
