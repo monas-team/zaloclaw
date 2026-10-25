@@ -3,6 +3,7 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
 import { createReplyPrefixOptions, createTypingCallbacks } from "../compat/openclaw-sdk.js";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
+import { ReconnectBackoff, isAuthFailure } from "../compat/backoff.js";
 
 // Inline mention gating to avoid compat barrel issues with OpenClaw SDK
 function resolveMentionGatingWithBypass(params: {
@@ -749,7 +750,8 @@ async function processMessage(
     let quoteMediaNote = "";
     if (message.quote.attach) {
       try {
-        console.log(`[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
+        // Raw attach JSON can carry signed CDN URLs; only emit under verbose logging.
+        logVerbose(core, runtime, `[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
         const attachObj = JSON.parse(message.quote.attach);
         const quoteMediaUrls: string[] = [];
         const quoteMediaTypes: string[] = [];
@@ -1316,6 +1318,7 @@ export async function monitorZaloClawProvider(
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
   let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   let resolveRunning: (() => void) | null = null;
+  const backoff = new ReconnectBackoff();
 
   // Resolve allowFrom name→id mappings
   try {
@@ -1671,10 +1674,16 @@ export async function monitorZaloClawProvider(
       api.listener.on("closed", (code: number, reason: string) => {
         runtime.log?.(`[${account.accountId}] listener closed: code=${code} reason=${reason}`);
         if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
-        if (stopped || abortSignal.aborted) resolveRunning?.();
+        if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+        // zca-js retries a bounded number of times on its own for known codes.
+        // When it stops (unknown code / retries exhausted) we take over with
+        // exponential backoff instead of the old fixed 10s loop.
+        if (restartTimer) return;
+        scheduleRestart(`listener closed (code=${code})`);
       });
 
       api.listener.on("connected", () => {
+        backoff.reset();
         logVerbose(core, runtime, `[${account.accountId}] listener connected`);
       });
 
@@ -1704,13 +1713,36 @@ export async function monitorZaloClawProvider(
         return;
       }
       runtime.error(`[${account.accountId}] listener start failed: ${errMsg}`);
-      if (!stopped && !abortSignal.aborted) {
-        logVerbose(core, runtime, `[${account.accountId}] retrying in 10s...`);
-        restartTimer = setTimeout(startListener, 10000);
-      } else {
+      if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+      if (isAuthFailure(err)) {
+        // Credentials are dead. Do NOT loop re-login / QR; surface and stop.
+        runtime.error(
+          `[${account.accountId}] session appears invalid; not retrying. ` +
+            `Re-login with: openclaw channels login zaloclaw`,
+        );
         resolveRunning?.();
+        return;
       }
+      scheduleRestart("listener start failed");
     }
+  };
+
+  const scheduleRestart = (why: string) => {
+    if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+    if (!backoff.canRetry()) {
+      runtime.error(
+        `[${account.accountId}] giving up after ${backoff.attempt} consecutive reconnect failures (${why}). ` +
+          `Restart the channel to try again.`,
+      );
+      resolveRunning?.();
+      return;
+    }
+    const delay = backoff.nextDelayMs();
+    logVerbose(core, runtime, `[${account.accountId}] ${why}; retrying in ${Math.round(delay / 1000)}s (attempt ${backoff.attempt})`);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      void startListener();
+    }, delay);
   };
 
   const runningPromise = new Promise<void>((resolve) => {
