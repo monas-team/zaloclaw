@@ -1,6 +1,6 @@
 {
   "name": "zaloclaw",
-  "version": "2.5.11",
+  "version": "2.6.0-compat.1",
   "description": "OpenClaw channel plugin for Zalo personal accounts via zca-js",
   "type": "module",
   "main": "dist/index.js",
@@ -35,12 +35,12 @@
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.5.7",
-      "minGatewayVersion": "2026.5.7"
+      "pluginApi": ">=2026.10.7",
+      "minGatewayVersion": "2026.10.7"
     },
     "build": {
-      "openclawVersion": "2026.5.7",
-      "pluginSdkVersion": "2026.5.7"
+      "openclawVersion": "2026.10.7",
+      "pluginSdkVersion": "2026.10.7"
     },
     "channel": {
       "id": "zaloclaw",
@@ -63,7 +63,7 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.5.7"
+    "openclaw": ">=2026.10.7"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",

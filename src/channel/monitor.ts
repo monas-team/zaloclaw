@@ -1,6 +1,6 @@
-import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig, MarkdownTableMode } from "../compat/openclaw-sdk.js";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
-import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createReplyPrefixOptions, createTypingCallbacks } from "../compat/openclaw-sdk.js";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
 
@@ -788,7 +788,10 @@ async function processMessage(
       ? await core.channel.pairing.readAllowFromStore({ channel: "zaloclaw", accountId: account.accountId }).catch(() => [])
       : [];
   const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom];
-  const useAccessGroups = config.commands?.useAccessGroups !== false;
+  // OpenClaw >= 2026.10 retired `commands.useAccessGroups` (listed in the config
+  // retired-paths table) and core's inbound pipeline now hardcodes `true`.
+  // Mirror core so ZaloClaw gating stays identical to stock channels.
+  const useAccessGroups = true;
   const senderAllowedForCommands = isSenderAllowed(senderId, effectiveAllowFrom);
   const commandAuthorized = shouldComputeAuth
     ? core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
@@ -1072,7 +1075,6 @@ async function processMessage(
         isDirect: !isGroup,
         isGroup,
         isMentionableGroup: isGroup,
-        requireMention: false,
         canDetectMention: false,
         effectiveWasMentioned: true,
         shouldBypassMention: true,
@@ -1122,7 +1124,7 @@ async function processMessage(
       const type = isGroup ? ThreadType.Group : ThreadType.User;
       await api.sendTypingEvent(chatId, type);
     },
-    onStartError: (err) => {
+    onStartError: (err: unknown) => {
       logTypingFailure({
         log: (msg) => logVerbose(core, runtime, msg),
         channel: "zaloclaw",
