@@ -8,6 +8,16 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/compat/openclaw-sdk.ts
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/plugin-entry";
+import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-outbound";
+import { ToolPolicySchema } from "openclaw/plugin-sdk/channel-config-schema";
+var init_openclaw_sdk = __esm({
+  "src/compat/openclaw-sdk.ts"() {
+    "use strict";
+  }
+});
+
 // src/client/credentials.ts
 import { readFileSync, writeFileSync, unlinkSync, existsSync, chmodSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -56,6 +66,88 @@ var init_credentials = __esm({
   }
 });
 
+// src/compat/image-metadata.ts
+import * as fs from "node:fs";
+function probeImageDimensions(buf) {
+  if (buf.length < 12) return null;
+  if (buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71) {
+    if (buf.length < 24) return null;
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (buf[0] === 71 && buf[1] === 73 && buf[2] === 70) {
+    return { width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) };
+  }
+  if (buf[0] === 66 && buf[1] === 77) {
+    if (buf.length < 26) return null;
+    return { width: buf.readInt32LE(18), height: Math.abs(buf.readInt32LE(22)) };
+  }
+  if (buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") {
+    if (buf.length < 30) return null;
+    const chunk = buf.toString("latin1", 12, 16);
+    if (chunk === "VP8 ") {
+      return { width: buf.readUInt16LE(26) & 16383, height: buf.readUInt16LE(28) & 16383 };
+    }
+    if (chunk === "VP8L") {
+      const b0 = buf[21], b1 = buf[22], b2 = buf[23], b3 = buf[24];
+      const width = 1 + ((b1 & 63) << 8 | b0);
+      const height = 1 + ((b3 & 15) << 10 | b2 << 2 | (b1 & 192) >> 6);
+      return { width, height };
+    }
+    if (chunk === "VP8X") {
+      const width = 1 + buf.readUIntLE(24, 3);
+      const height = 1 + buf.readUIntLE(27, 3);
+      return { width, height };
+    }
+    return null;
+  }
+  if (buf[0] === 255 && buf[1] === 216) {
+    let off = 2;
+    while (off + 9 < buf.length) {
+      if (buf[off] !== 255) {
+        off++;
+        continue;
+      }
+      const marker = buf[off + 1];
+      if (marker === 216 || marker === 1 || marker >= 208 && marker <= 215) {
+        off += 2;
+        continue;
+      }
+      if (marker === 255) {
+        off++;
+        continue;
+      }
+      const len = buf.readUInt16BE(off + 2);
+      const isSOF = marker >= 192 && marker <= 207 && marker !== 196 && marker !== 200 && marker !== 204;
+      if (isSOF) {
+        return { height: buf.readUInt16BE(off + 5), width: buf.readUInt16BE(off + 7) };
+      }
+      if (marker === 218) break;
+      off += 2 + len;
+    }
+    return null;
+  }
+  return null;
+}
+async function readImageDimensions(filePath) {
+  const fh = await fs.promises.open(filePath, "r");
+  try {
+    const { size } = await fh.stat();
+    const len = Math.min(size, HEADER_BYTES);
+    const buf = Buffer.alloc(len);
+    await fh.read(buf, 0, len, 0);
+    return probeImageDimensions(buf);
+  } finally {
+    await fh.close();
+  }
+}
+var HEADER_BYTES;
+var init_image_metadata = __esm({
+  "src/compat/image-metadata.ts"() {
+    "use strict";
+    HEADER_BYTES = 64 * 1024;
+  }
+});
+
 // src/client/zalo-client.ts
 var zalo_client_exports = {};
 __export(zalo_client_exports, {
@@ -70,15 +162,14 @@ __export(zalo_client_exports, {
   logout: () => logout
 });
 import { Zalo, LoginQRCallbackEventType } from "zca-js";
-import sharp from "sharp";
-import * as fs from "fs";
+import * as fs2 from "fs";
 async function imageMetadataGetter(filePath) {
-  const data = await fs.promises.readFile(filePath);
-  const metadata = await sharp(data).metadata();
+  const data = await fs2.promises.readFile(filePath);
+  const metadata = probeImageDimensions(data);
   return {
-    height: metadata.height || 0,
-    width: metadata.width || 0,
-    size: metadata.size || data.length
+    height: metadata?.height || 0,
+    width: metadata?.width || 0,
+    size: data.length
   };
 }
 async function loginWithQR(callback) {
@@ -164,6 +255,7 @@ var init_zalo_client = __esm({
   "src/client/zalo-client.ts"() {
     "use strict";
     init_credentials();
+    init_image_metadata();
     apiInstance = null;
     currentUid = null;
     loginPromise = null;
@@ -392,7 +484,7 @@ __export(send_exports, {
   sendMessageZaloClaw: () => sendMessageZaloClaw
 });
 import { ThreadType, TextStyle } from "zca-js";
-import * as fs4 from "fs";
+import * as fs5 from "fs";
 function markdownToZaloStyles(input) {
   const styles = [];
   let text = input;
@@ -445,7 +537,7 @@ async function sendMessageZaloClaw(threadId, text, options = {}) {
       caption: text || options.caption
     });
   }
-  if (text && isLocalFilePath(text.trim()) && fs4.existsSync(text.trim())) {
+  if (text && isLocalFilePath(text.trim()) && fs5.existsSync(text.trim())) {
     return uploadAndSendLocalImage(threadId, text.trim(), {
       ...options,
       caption: options.caption
@@ -521,7 +613,7 @@ async function sendLinkZaloClaw(threadId, url, options = {}) {
 async function uploadAndSendLocalImage(threadId, localPath, options = {}) {
   if (!threadId?.trim()) return { ok: false, error: "No threadId provided" };
   if (!localPath?.trim()) return { ok: false, error: "No local path provided" };
-  if (!fs4.existsSync(localPath)) return { ok: false, error: `File not found: ${localPath}` };
+  if (!fs5.existsSync(localPath)) return { ok: false, error: `File not found: ${localPath}` };
   try {
     const api = await getApi();
     const type = options.isGroup ? ThreadType.Group : ThreadType.User;
@@ -532,7 +624,7 @@ async function uploadAndSendLocalImage(threadId, localPath, options = {}) {
     );
     if (options.cleanupAfterUpload === true) {
       try {
-        fs4.unlinkSync(localPath);
+        fs5.unlinkSync(localPath);
       } catch {
       }
     }
@@ -572,6 +664,51 @@ var init_group_id_cache = __esm({
   "src/features/group-id-cache.ts"() {
     "use strict";
     knownGroupIds = /* @__PURE__ */ new Set();
+  }
+});
+
+// src/compat/backoff.ts
+function isAuthFailure(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /not authenticated|login with qr|session.*(expired|invalid)|unauthori[sz]ed|\b401\b|\b403\b|invalid.*cookie|checkpoint|account.*(locked|banned|blocked)/i.test(
+    msg
+  );
+}
+var ReconnectBackoff;
+var init_backoff = __esm({
+  "src/compat/backoff.ts"() {
+    "use strict";
+    ReconnectBackoff = class {
+      #baseMs;
+      #maxMs;
+      #maxAttempts;
+      #random;
+      #attempt = 0;
+      constructor(opts = {}) {
+        this.#baseMs = opts.baseMs ?? 5e3;
+        this.#maxMs = opts.maxMs ?? 5 * 6e4;
+        this.#maxAttempts = opts.maxAttempts ?? 12;
+        this.#random = opts.random ?? Math.random;
+      }
+      get attempt() {
+        return this.#attempt;
+      }
+      /** True when another retry is allowed. */
+      canRetry() {
+        return this.#attempt < this.#maxAttempts;
+      }
+      /** Register a failure and return the delay before the next attempt (ms). */
+      nextDelayMs() {
+        this.#attempt += 1;
+        const exp = Math.min(this.#maxMs, this.#baseMs * 2 ** (this.#attempt - 1));
+        const half = exp / 2;
+        return Math.round(half + this.#random() * half);
+      }
+      /** Call after a successful connection so the next failure starts small again. */
+      reset() {
+        this.#attempt = 0;
+      }
+    };
   }
 });
 
@@ -714,7 +851,7 @@ var init_url_validator = __esm({
 });
 
 // src/channel/image-downloader.ts
-import * as fs5 from "fs";
+import * as fs6 from "fs";
 import * as path2 from "path";
 import * as crypto2 from "crypto";
 import * as os2 from "os";
@@ -750,8 +887,8 @@ function detectImageType(buffer) {
 async function downloadImageFromUrl(url, workspaceDir) {
   try {
     const targetDir = workspaceDir || path2.join(os2.homedir(), ".openclaw/media/inbound");
-    if (!fs5.existsSync(targetDir)) {
-      fs5.mkdirSync(targetDir, { recursive: true });
+    if (!fs6.existsSync(targetDir)) {
+      fs6.mkdirSync(targetDir, { recursive: true });
     }
     const urlHash = crypto2.createHash("sha256").update(url).digest("hex").substring(0, 12);
     const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").substring(0, 19);
@@ -816,7 +953,7 @@ async function downloadImageFromUrl(url, workspaceDir) {
       }
       console.warn(`[image-downloader] Unknown image format from ${url}, saving anyway`);
     }
-    fs5.writeFileSync(filePath, buffer);
+    fs6.writeFileSync(filePath, buffer);
     return filePath;
   } catch (err) {
     console.error(`[image-downloader] Error downloading ${url}:`, err);
@@ -869,7 +1006,7 @@ var init_image_downloader = __esm({
 });
 
 // src/channel/file-downloader.ts
-import * as fs6 from "fs";
+import * as fs7 from "fs";
 import * as path3 from "path";
 import * as crypto3 from "crypto";
 import * as os3 from "os";
@@ -892,8 +1029,8 @@ function buildZaloCookieHeader2(cookie) {
 async function downloadFileFromUrl(url, workspaceDir) {
   try {
     const targetDir = workspaceDir || path3.join(os3.homedir(), ".openclaw/media/inbound");
-    if (!fs6.existsSync(targetDir)) {
-      fs6.mkdirSync(targetDir, { recursive: true });
+    if (!fs7.existsSync(targetDir)) {
+      fs7.mkdirSync(targetDir, { recursive: true });
     }
     const urlHash = crypto3.createHash("sha256").update(url).digest("hex").substring(0, 12);
     const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").substring(0, 19);
@@ -946,7 +1083,7 @@ async function downloadFileFromUrl(url, workspaceDir) {
     if (contentType) {
       console.log(`[file-downloader] Downloaded ${contentType} from ${url}`);
     }
-    fs6.writeFileSync(filePath, buffer);
+    fs7.writeFileSync(filePath, buffer);
     console.log(`[file-downloader] Saved to ${filePath} (${buffer.length} bytes)`);
     return filePath;
   } catch (err) {
@@ -1121,14 +1258,14 @@ var init_group_event = __esm({
 });
 
 // src/features/passive-collector.ts
-import * as fs7 from "fs";
+import * as fs8 from "fs";
 import * as path4 from "path";
 import * as os4 from "os";
 function collectGroupMessage(opts) {
   const { groupId, senderId, senderName, content, msgId, silent = true } = opts;
   if (!content?.trim()) return;
   try {
-    fs7.mkdirSync(PASSIVE_DIR, { recursive: true });
+    fs8.mkdirSync(PASSIVE_DIR, { recursive: true });
     const record = {
       ts: (/* @__PURE__ */ new Date()).toISOString(),
       group_id: groupId,
@@ -1139,7 +1276,7 @@ function collectGroupMessage(opts) {
       ...msgId ? { msg_id: msgId } : {}
     };
     const filePath = path4.join(PASSIVE_DIR, `${groupId}.jsonl`);
-    fs7.appendFileSync(filePath, JSON.stringify(record) + "\n", "utf-8");
+    fs8.appendFileSync(filePath, JSON.stringify(record) + "\n", "utf-8");
   } catch (err) {
     if (!silent) throw err;
   }
@@ -1147,8 +1284,8 @@ function collectGroupMessage(opts) {
 function recallGroupHistory(params) {
   const { groupId, limit = 50, query } = params;
   const filePath = path4.join(PASSIVE_DIR, `${groupId}.jsonl`);
-  if (!fs7.existsSync(filePath)) return [];
-  const lines = fs7.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
+  if (!fs8.existsSync(filePath)) return [];
+  const lines = fs8.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
   let records = [];
   for (const line of lines) {
     try {
@@ -1165,12 +1302,12 @@ function recallGroupHistory(params) {
   return records.reverse().slice(0, limit);
 }
 function listPassiveGroups() {
-  if (!fs7.existsSync(PASSIVE_DIR)) return [];
-  const files = fs7.readdirSync(PASSIVE_DIR).filter((f) => f.endsWith(".jsonl"));
+  if (!fs8.existsSync(PASSIVE_DIR)) return [];
+  const files = fs8.readdirSync(PASSIVE_DIR).filter((f) => f.endsWith(".jsonl"));
   return files.map((filename) => {
     const groupId = filename.replace(/\.jsonl$/, "");
     const filePath = path4.join(PASSIVE_DIR, filename);
-    const lines = fs7.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
+    const lines = fs8.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
     let lastTs = null;
     try {
       const last = JSON.parse(lines[lines.length - 1]);
@@ -1507,14 +1644,12 @@ __export(monitor_exports, {
   _processedMsgIds: () => processedMsgIds,
   monitorZaloClawProvider: () => monitorZaloClawProvider
 });
-import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
 import { ThreadType as ThreadType2, FriendEventType, Reactions } from "zca-js";
-import * as fs8 from "fs";
+import * as fs9 from "fs";
 import * as path5 from "path";
 import * as crypto4 from "crypto";
-import sharp2 from "sharp";
 function resolveMentionGatingWithBypass(params) {
   if (!params.isGroup || !params.requireMention) return { shouldSkip: false };
   if (params.wasMentioned) return { shouldSkip: false };
@@ -1608,14 +1743,14 @@ function looksLikeExplicitFileObject(obj, url) {
 }
 function fileSha256(filePath) {
   try {
-    return crypto4.createHash("sha256").update(fs8.readFileSync(filePath)).digest("hex");
+    return crypto4.createHash("sha256").update(fs9.readFileSync(filePath)).digest("hex");
   } catch {
     return void 0;
   }
 }
 function looksLikeHtmlFile(filePath) {
   try {
-    const head = fs8.readFileSync(filePath).subarray(0, 512).toString("utf8").trim().toLowerCase();
+    const head = fs9.readFileSync(filePath).subarray(0, 512).toString("utf8").trim().toLowerCase();
     return head.includes("<!doctype") || head.includes("<html") || head.includes("<head");
   } catch {
     return false;
@@ -1779,13 +1914,13 @@ function renameFilesFromMessageContent(messageText, localPaths) {
       try {
         let finalPath = newPath;
         let counter = 1;
-        while (fs8.existsSync(finalPath)) {
+        while (fs9.existsSync(finalPath)) {
           const ext = path5.extname(safeName);
           const base = path5.basename(safeName, ext);
           finalPath = path5.join(dir, `${base}_${counter}${ext}`);
           counter++;
         }
-        fs8.renameSync(fp, finalPath);
+        fs9.renameSync(fp, finalPath);
         console.log(`[zaloclaw] Renamed ${fp} \u2192 ${finalPath}`);
         renamed.push(finalPath);
         usedNames.add(safeName);
@@ -1932,7 +2067,7 @@ async function downloadInboundMedia(message) {
     const hash = fileSha256(localPath);
     if (hash && seenHashes.has(hash)) {
       try {
-        fs8.rmSync(localPath, { force: true });
+        fs9.rmSync(localPath, { force: true });
       } catch {
       }
       continue;
@@ -1946,7 +2081,8 @@ async function filterAttachableMediaPaths(paths) {
   const filtered = [];
   for (const filePath of paths) {
     try {
-      const metadata = await sharp2(filePath).metadata();
+      const metadata = await readImageDimensions(filePath);
+      if (!metadata) throw new Error("not a recognised image");
       if (metadata.width && metadata.height) {
         const minSide = Math.min(metadata.width, metadata.height);
         const maxSide = Math.max(metadata.width, metadata.height);
@@ -2030,7 +2166,7 @@ async function processMessage(message, account, config, core, runtime2, statusSi
     let quoteMediaNote = "";
     if (message.quote.attach) {
       try {
-        console.log(`[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
+        logVerbose(core, runtime2, `[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
         const attachObj = JSON.parse(message.quote.attach);
         const quoteMediaUrls = [];
         const quoteMediaTypes = [];
@@ -2062,7 +2198,7 @@ ${effectiveContent}`;
   const shouldComputeAuth = core.channel.commands.shouldComputeCommandAuthorized(rawBody, config);
   const storeAllowFrom = !isGroup && (dmPolicy2 !== "open" || shouldComputeAuth) ? await core.channel.pairing.readAllowFromStore({ channel: "zaloclaw", accountId: account.accountId }).catch(() => []) : [];
   const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom];
-  const useAccessGroups = config.commands?.useAccessGroups !== false;
+  const useAccessGroups = true;
   const senderAllowedForCommands = isSenderAllowed(senderId, effectiveAllowFrom);
   const commandAuthorized = shouldComputeAuth ? core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
     useAccessGroups,
@@ -2296,7 +2432,6 @@ ${fileLines}]`;
       isDirect: !isGroup,
       isGroup,
       isMentionableGroup: isGroup,
-      requireMention: false,
       canDetectMention: false,
       effectiveWasMentioned: true,
       shouldBypassMention: true
@@ -2502,6 +2637,7 @@ async function monitorZaloClawProvider(options) {
   let restartTimer = null;
   let keepAliveTimer = null;
   let resolveRunning = null;
+  const backoff = new ReconnectBackoff();
   try {
     const allowFromEntries = (account.config.allowFrom ?? []).map((entry) => normalizeZaloClawEntry(String(entry))).filter((entry) => entry && entry !== "*");
     if (allowFromEntries.length > 0) {
@@ -2840,9 +2976,15 @@ async function monitorZaloClawProvider(options) {
           clearInterval(keepAliveTimer);
           keepAliveTimer = null;
         }
-        if (stopped || abortSignal.aborted) resolveRunning?.();
+        if (stopped || abortSignal.aborted) {
+          resolveRunning?.();
+          return;
+        }
+        if (restartTimer) return;
+        scheduleRestart(`listener closed (code=${code})`);
       });
       api.listener.on("connected", () => {
+        backoff.reset();
         logVerbose(core, runtime2, `[${account.accountId}] listener connected`);
       });
       api.listener.start({ retryOnClose: true });
@@ -2869,13 +3011,38 @@ async function monitorZaloClawProvider(options) {
         return;
       }
       runtime2.error(`[${account.accountId}] listener start failed: ${errMsg}`);
-      if (!stopped && !abortSignal.aborted) {
-        logVerbose(core, runtime2, `[${account.accountId}] retrying in 10s...`);
-        restartTimer = setTimeout(startListener, 1e4);
-      } else {
+      if (stopped || abortSignal.aborted) {
         resolveRunning?.();
+        return;
       }
+      if (isAuthFailure(err)) {
+        runtime2.error(
+          `[${account.accountId}] session appears invalid; not retrying. Re-login with: openclaw channels login zaloclaw`
+        );
+        resolveRunning?.();
+        return;
+      }
+      scheduleRestart("listener start failed");
     }
+  };
+  const scheduleRestart = (why) => {
+    if (stopped || abortSignal.aborted) {
+      resolveRunning?.();
+      return;
+    }
+    if (!backoff.canRetry()) {
+      runtime2.error(
+        `[${account.accountId}] giving up after ${backoff.attempt} consecutive reconnect failures (${why}). Restart the channel to try again.`
+      );
+      resolveRunning?.();
+      return;
+    }
+    const delay = backoff.nextDelayMs();
+    logVerbose(core, runtime2, `[${account.accountId}] ${why}; retrying in ${Math.round(delay / 1e3)}s (attempt ${backoff.attempt})`);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      void startListener();
+    }, delay);
   };
   const runningPromise = new Promise((resolve7) => {
     resolveRunning = resolve7;
@@ -2892,9 +3059,12 @@ var ZALOJS_TEXT_LIMIT, nameCache, groupNameCache, NAME_CACHE_TTL, groupMessageBu
 var init_monitor = __esm({
   "src/channel/monitor.ts"() {
     "use strict";
+    init_openclaw_sdk();
+    init_backoff();
     init_runtime();
     init_send();
     init_zalo_client();
+    init_image_metadata();
     init_image_downloader();
     init_file_downloader();
     init_friend_request_store();
@@ -2931,7 +3101,7 @@ var init_monitor = __esm({
 });
 
 // index.ts
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+init_openclaw_sdk();
 
 // src/channel/channel.ts
 import {
@@ -2999,6 +3169,7 @@ async function getZaloClawUserInfo() {
 }
 
 // src/config/config-schema.ts
+init_openclaw_sdk();
 import {
   AllowFromListSchema,
   buildCatchallMultiAccountChannelSchema,
@@ -3007,7 +3178,6 @@ import {
   GroupPolicySchema,
   MarkdownConfigSchema
 } from "openclaw/plugin-sdk/channel-config-primitives";
-import { ToolPolicySchema } from "openclaw/plugin-sdk/agent-config-primitives";
 import { z } from "zod";
 var ZaloGroupConfigSchema = z.object({
   /** Whether this group is enabled for the bot. */
@@ -3131,12 +3301,12 @@ import {
   promptAccountId,
   promptChannelAccessConfig
 } from "openclaw/plugin-sdk/setup";
-import * as fs3 from "fs";
+import * as fs4 from "fs";
 init_zalo_client();
 import { LoginQRCallbackEventType as LoginQRCallbackEventType2 } from "zca-js";
 
 // src/client/qr-display.ts
-import * as fs2 from "fs";
+import * as fs3 from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as crypto from "crypto";
@@ -3146,7 +3316,7 @@ import jsQR from "jsqr";
 async function readQRFromPNG(pngPath) {
   return new Promise((resolve7, reject) => {
     try {
-      const buffer = fs2.readFileSync(pngPath);
+      const buffer = fs3.readFileSync(pngPath);
       const png = PNG.sync.read(buffer);
       const code = jsQR(Uint8ClampedArray.from(png.data), png.width, png.height);
       if (!code) {
@@ -3164,7 +3334,7 @@ async function displayQRFromPNG(base64Image) {
   const pngPath = path.join(os.tmpdir(), `zaloclaw-qr-${uniqueId}.png`);
   try {
     const buffer = Buffer.from(base64Image, "base64");
-    fs2.writeFileSync(pngPath, buffer, { mode: 384 });
+    fs3.writeFileSync(pngPath, buffer, { mode: 384 });
     const qrContent = await readQRFromPNG(pngPath);
     console.log("\n");
     qrcode.generate(qrContent, { small: true });
@@ -3175,7 +3345,7 @@ QR image saved at: ${pngPath}
     return pngPath;
   } catch (err) {
     try {
-      fs2.unlinkSync(pngPath);
+      fs3.unlinkSync(pngPath);
     } catch {
     }
     throw new Error(`Failed to display QR: ${err instanceof Error ? err.message : String(err)}`);
@@ -3416,7 +3586,7 @@ async function performQrLogin(prompter) {
     await prompter.note("Login successful!", "Success");
     if (qrFilePath) {
       try {
-        fs3.unlinkSync(qrFilePath);
+        fs4.unlinkSync(qrFilePath);
       } catch {
       }
     }
@@ -3434,7 +3604,7 @@ async function performQrLogin(prompter) {
     );
     if (qrFilePath) {
       try {
-        fs3.unlinkSync(qrFilePath);
+        fs4.unlinkSync(qrFilePath);
       } catch {
       }
     }
@@ -3622,7 +3792,7 @@ function collectZaloClawStatusIssues() {
 // src/channel/channel.ts
 init_zalo_client();
 import { LoginQRCallbackEventType as LoginQRCallbackEventType3 } from "zca-js";
-import * as fs9 from "fs";
+import * as fs10 from "fs";
 import * as readline from "readline";
 var meta = {
   id: "zaloclaw",
@@ -4001,7 +4171,7 @@ var zaloClawPlugin = {
         runtime2.log("Login successful!");
         if (qrFilePath) {
           try {
-            fs9.unlinkSync(qrFilePath);
+            fs10.unlinkSync(qrFilePath);
           } catch {
           }
         }
@@ -4021,7 +4191,7 @@ var zaloClawPlugin = {
       } catch (err) {
         if (qrFilePath) {
           try {
-            fs9.unlinkSync(qrFilePath);
+            fs10.unlinkSync(qrFilePath);
           } catch {
           }
         }
@@ -4069,7 +4239,7 @@ var zaloClawPlugin = {
       const account = resolveZaloClawAccountSync({ cfg, accountId });
       const isGroup = isKnownGroupId(to);
       let options = { isGroup };
-      if (mediaUrl && isLocalFilePath(mediaUrl) && fs9.existsSync(mediaUrl)) {
+      if (mediaUrl && isLocalFilePath(mediaUrl) && fs10.existsSync(mediaUrl)) {
         options.localPath = mediaUrl;
         options.caption = text;
       } else if (mediaUrl) {
@@ -4301,7 +4471,7 @@ function setGroupRequireMention(config, groupId, requireMention) {
 init_friend_request_store();
 
 // src/safety/thread-sandbox.ts
-import * as fs10 from "fs";
+import * as fs11 from "fs";
 import * as path6 from "path";
 import * as os5 from "os";
 var WORKSPACE_BASE = path6.join(os5.homedir(), ".openclaw", "workspace", "threads");
@@ -4319,7 +4489,7 @@ function validateLocalFilePath(filePath) {
     path6.join(os5.homedir(), ".openclaw", "media"),
     tmpDir,
     // Resolve /tmp symlinks (e.g., macOS /tmp → /private/tmp)
-    ...fs10.existsSync(tmpDir) ? [fs10.realpathSync(tmpDir)] : []
+    ...fs11.existsSync(tmpDir) ? [fs11.realpathSync(tmpDir)] : []
   ];
   const isAllowed = allowedBases.some(
     (base) => resolved.startsWith(base + path6.sep) || resolved === base
@@ -4329,8 +4499,8 @@ function validateLocalFilePath(filePath) {
       `Access denied: ${filePath} is outside allowed directories. Only files in ~/.openclaw/workspace/, ~/.openclaw/media/, or system temp are allowed.`
     );
   }
-  if (fs10.existsSync(resolved)) {
-    const real = fs10.realpathSync(resolved);
+  if (fs11.existsSync(resolved)) {
+    const real = fs11.realpathSync(resolved);
     const isRealAllowed = allowedBases.some(
       (base) => real.startsWith(base + path6.sep) || real === base
     );

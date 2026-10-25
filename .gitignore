@@ -34,3 +34,10 @@ session-*.json
 # Temp files
 tmp/
 *.tmp
+
+# ZaloClaw runtime data (never commit)
+zaloclaw-credentials.json
+*credentials*.json
+*.sqlite*
+.compat-backup/
+.schema-probe-*.mjs

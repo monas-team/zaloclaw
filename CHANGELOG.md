@@ -4,6 +4,40 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.6.0-compat.1] — 2026-10-25
+
+Bản tương thích OpenClaw **2026.10.7** (bản 2.5.11 không load được trên 2026.10.x).
+Chi tiết mapping API và ma trận đã kiểm chứng: `docs/COMPAT.md`. Hướng dẫn nâng cấp/rollback: `docs/UPGRADE.md`.
+
+### Thay đổi phá vỡ (breaking)
+- Yêu cầu OpenClaw >= 2026.10.7 (`openclaw.compat.pluginApi`, `minGatewayVersion`, `peerDependencies`).
+- Plugin ngoài phải được tin cậy tường minh: `plugins.entries.zaloclaw.enabled = true`. Script migration tự thêm.
+
+### Tương thích SDK
+- Thêm `src/compat/openclaw-sdk.ts`: điểm re-export duy nhất cho các symbol SDK đã đổi subpath.
+  `plugin-sdk` → `plugin-entry`; `config-runtime` → `config-contracts`; `channel-reply-pipeline` → `channel-outbound`; `agent-config-primitives` → `channel-config-schema`.
+- Bỏ field `requireMention` khỏi `shouldAckReaction` (đã bị xóa khỏi `AckReactionGateParams`).
+- `commands.useAccessGroups` đã bị upstream retire; plugin cố định `true` giống core.
+
+### Sửa lỗi
+- **Plugin không load được trên 2026.10.x do `sharp`** — OpenClaw mới stage native addon vào thư mục riêng, RPATH tương đối của sharp không tìm thấy `libvips-cpp.so.42`. Bỏ hẳn `sharp`; đọc kích thước ảnh bằng probe header thuần JS (`src/compat/image-metadata.ts`, hỗ trợ PNG/JPEG/GIF/WebP/BMP). File HTML giả ảnh vẫn bị loại như trước.
+
+### Độ ổn định
+- Reconnect listener dùng exponential backoff + jitter (5s → 5 phút, tối đa 12 lần), thay vòng lặp cố định 10s. Reset khi `connected`.
+- Khi credentials bị từ chối (401/403/session expired) **không** loop re-login/QR; báo lỗi rõ và dừng channel.
+- Log `quote.attach raw` (có thể chứa signed CDN URL) chỉ in ở mức verbose.
+
+### Migration & vận hành
+- `scripts/migrate-config.mjs`: dry-run mặc định, backup config + credentials (0600), validate schema, dừng nếu lỗi, không bao giờ sửa file session, có `--rollback`.
+- `scripts/compat-check.mjs`: gate tự động (exports subpath, tsc, vitest, build, import smoke, không native addon) và ghi hàng PASS/FAIL vào `docs/COMPAT.md`.
+- CI: matrix OpenClaw pinned + `latest` (experimental), Node 22/24, secret scan, artifact + checksum.
+- Workflow `openclaw-update-check`: phát hiện bản stable mới, chạy gate, **chỉ mở PR**; không merge, không deploy.
+
+### Chưa kiểm chứng thực tế
+- Toàn bộ checklist live (login QR, DM/group, reply/mention, media, reconnect, 24h soak) chưa chạy với tài khoản Zalo thật. Xem bảng "Live verification" trong `docs/COMPAT.md`.
+
+---
+
 ## [2.5.11] — 2026-07-25
 
 ### Sửa lỗi

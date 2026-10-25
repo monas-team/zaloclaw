@@ -1,8 +1,9 @@
-import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig, MarkdownTableMode } from "../compat/openclaw-sdk.js";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
-import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createReplyPrefixOptions, createTypingCallbacks } from "../compat/openclaw-sdk.js";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
+import { ReconnectBackoff, isAuthFailure } from "../compat/backoff.js";
 
 // Inline mention gating to avoid compat barrel issues with OpenClaw SDK
 function resolveMentionGatingWithBypass(params: {
@@ -24,7 +25,7 @@ import { getApi, getCurrentUid } from "../client/zalo-client.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import sharp from "sharp";
+import { readImageDimensions } from "../compat/image-metadata.js";
 import { downloadImageFromUrl } from "./image-downloader.js";
 import { downloadFileFromUrl } from "./file-downloader.js";
 import { addPendingRequest, removePendingRequest } from "../client/friend-request-store.js";
@@ -628,7 +629,10 @@ async function filterAttachableMediaPaths(paths: string[]): Promise<string[]> {
 
   for (const filePath of paths) {
     try {
-      const metadata = await sharp(filePath).metadata();
+      const metadata = await readImageDimensions(filePath);
+      // sharp used to throw for non-image bytes; preserve that so the catch
+      // below keeps rejecting HTML/error pages disguised as image files.
+      if (!metadata) throw new Error("not a recognised image");
       if (metadata.width && metadata.height) {
         const minSide = Math.min(metadata.width, metadata.height);
         const maxSide = Math.max(metadata.width, metadata.height);
@@ -746,7 +750,8 @@ async function processMessage(
     let quoteMediaNote = "";
     if (message.quote.attach) {
       try {
-        console.log(`[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
+        // Raw attach JSON can carry signed CDN URLs; only emit under verbose logging.
+        logVerbose(core, runtime, `[zaloclaw] quote.attach raw (${message.quote.attach.length} chars): ${message.quote.attach.substring(0, 300)}`);
         const attachObj = JSON.parse(message.quote.attach);
         const quoteMediaUrls: string[] = [];
         const quoteMediaTypes: string[] = [];
@@ -788,7 +793,10 @@ async function processMessage(
       ? await core.channel.pairing.readAllowFromStore({ channel: "zaloclaw", accountId: account.accountId }).catch(() => [])
       : [];
   const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom];
-  const useAccessGroups = config.commands?.useAccessGroups !== false;
+  // OpenClaw >= 2026.10 retired `commands.useAccessGroups` (listed in the config
+  // retired-paths table) and core's inbound pipeline now hardcodes `true`.
+  // Mirror core so ZaloClaw gating stays identical to stock channels.
+  const useAccessGroups = true;
   const senderAllowedForCommands = isSenderAllowed(senderId, effectiveAllowFrom);
   const commandAuthorized = shouldComputeAuth
     ? core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
@@ -1072,7 +1080,6 @@ async function processMessage(
         isDirect: !isGroup,
         isGroup,
         isMentionableGroup: isGroup,
-        requireMention: false,
         canDetectMention: false,
         effectiveWasMentioned: true,
         shouldBypassMention: true,
@@ -1122,7 +1129,7 @@ async function processMessage(
       const type = isGroup ? ThreadType.Group : ThreadType.User;
       await api.sendTypingEvent(chatId, type);
     },
-    onStartError: (err) => {
+    onStartError: (err: unknown) => {
       logTypingFailure({
         log: (msg) => logVerbose(core, runtime, msg),
         channel: "zaloclaw",
@@ -1311,6 +1318,7 @@ export async function monitorZaloClawProvider(
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
   let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   let resolveRunning: (() => void) | null = null;
+  const backoff = new ReconnectBackoff();
 
   // Resolve allowFrom name→id mappings
   try {
@@ -1666,10 +1674,16 @@ export async function monitorZaloClawProvider(
       api.listener.on("closed", (code: number, reason: string) => {
         runtime.log?.(`[${account.accountId}] listener closed: code=${code} reason=${reason}`);
         if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
-        if (stopped || abortSignal.aborted) resolveRunning?.();
+        if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+        // zca-js retries a bounded number of times on its own for known codes.
+        // When it stops (unknown code / retries exhausted) we take over with
+        // exponential backoff instead of the old fixed 10s loop.
+        if (restartTimer) return;
+        scheduleRestart(`listener closed (code=${code})`);
       });
 
       api.listener.on("connected", () => {
+        backoff.reset();
         logVerbose(core, runtime, `[${account.accountId}] listener connected`);
       });
 
@@ -1699,13 +1713,36 @@ export async function monitorZaloClawProvider(
         return;
       }
       runtime.error(`[${account.accountId}] listener start failed: ${errMsg}`);
-      if (!stopped && !abortSignal.aborted) {
-        logVerbose(core, runtime, `[${account.accountId}] retrying in 10s...`);
-        restartTimer = setTimeout(startListener, 10000);
-      } else {
+      if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+      if (isAuthFailure(err)) {
+        // Credentials are dead. Do NOT loop re-login / QR; surface and stop.
+        runtime.error(
+          `[${account.accountId}] session appears invalid; not retrying. ` +
+            `Re-login with: openclaw channels login zaloclaw`,
+        );
         resolveRunning?.();
+        return;
       }
+      scheduleRestart("listener start failed");
     }
+  };
+
+  const scheduleRestart = (why: string) => {
+    if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
+    if (!backoff.canRetry()) {
+      runtime.error(
+        `[${account.accountId}] giving up after ${backoff.attempt} consecutive reconnect failures (${why}). ` +
+          `Restart the channel to try again.`,
+      );
+      resolveRunning?.();
+      return;
+    }
+    const delay = backoff.nextDelayMs();
+    logVerbose(core, runtime, `[${account.accountId}] ${why}; retrying in ${Math.round(delay / 1000)}s (attempt ${backoff.attempt})`);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      void startListener();
+    }, delay);
   };
 
   const runningPromise = new Promise<void>((resolve) => {

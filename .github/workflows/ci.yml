@@ -2,58 +2,74 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "compat/**"]
   pull_request:
     branches: [main]
 
 jobs:
-  check:
+  compat:
+    name: compat (openclaw ${{ matrix.openclaw }}, node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [22, 24]
+        node: [22, 24]
+        # Pinned verified stable + "next" to catch upstream breakage early.
+        # Only the pinned entry is required to merge; see `continue-on-error`.
+        openclaw:
+          - "2026.10.7"
+          - "latest"
+        include:
+          - openclaw: "latest"
+            experimental: true
+    continue-on-error: ${{ matrix.experimental == true }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ matrix.node }}
           cache: npm
-          node-version-file: ''
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       - run: npm ci
-      - name: TypeScript syntax check
-        # Type errors from openclaw SDK version mismatches are expected.
-        # The plugin targets the gateway-linked openclaw, not the npm-published version.
-        # Use continue-on-error so CI stays green while flagging issues in the log.
-        run: npx tsc --noEmit 2>&1 || echo "[warn] tsc reported errors (SDK version mismatch expected — see above)"
-        continue-on-error: true
-      - name: Verify imports resolve
+      - name: Install target OpenClaw
+        run: npm install --no-save "openclaw@${{ matrix.openclaw }}"
+      - name: Compatibility gate
+        # exports check + tsc + vitest + build + import smoke + no-native-addon guard
+        run: node scripts/compat-check.mjs --no-write
+      - name: Secret scan (never ship credentials)
         run: |
-          node --input-type=module -e "
-            import { readFileSync } from 'fs';
-            import { readdir } from 'fs/promises';
-            import { join } from 'path';
-            async function walk(dir) {
-              const entries = await readdir(dir, { withFileTypes: true });
-              for (const e of entries) {
-                if (e.name === 'node_modules' || e.name === '.git') continue;
-                const full = join(dir, e.name);
-                if (e.isDirectory()) await walk(full);
-                else if (e.name.endsWith('.ts')) {
-                  const src = readFileSync(full, 'utf8');
-                  const imports = [...src.matchAll(/from\s+['\"](\.[^'\"]+)['\"/]/g)];
-                  for (const m of imports) {
-                    const rel = m[1].replace(/\.js$/, '.ts');
-                    const resolved = join(full, '..', rel);
-                    try { readFileSync(resolved); }
-                    catch { console.error('BROKEN IMPORT:', full, '->', m[1]); process.exitCode = 1; }
-                  }
-                }
-              }
-            }
-            await walk('.');
-            if (!process.exitCode) console.log('All relative imports OK');
-          "
+          set -e
+          if git ls-files | grep -Ei '(^|/)[^/]*credentials[^/]*\.json$|session-.*\.json$|qr-.*\.png$|(^|/)\.env(\..*)?$'; then
+            echo "::error::credential-like file tracked in git"; exit 1; fi
+          if grep -rEn 'zpw_sek|zpw_enk|"imei"\s*:\s*"[0-9a-f-]{8,}' --include='*.ts' --include='*.json' --exclude-dir=node_modules --exclude-dir=dist . ; then
+            echo "::error::possible Zalo secret in source"; exit 1; fi
+      - name: Upload bundle
+        if: matrix.openclaw == '2026.10.7' && matrix.node == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaloclaw-dist
+          path: dist/index.js
+
+  release-artifact:
+    needs: compat
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm install --no-save openclaw@2026.10.7
+      - run: npm run build
+      - name: Pack + checksum
+        run: |
+          npm pack --silent
+          sha256sum zaloclaw-*.tgz > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zaloclaw-release
+          path: |
+            zaloclaw-*.tgz
+            SHA256SUMS
+            CHANGELOG.md
