@@ -6,7 +6,7 @@ import {
   deleteCredentials,
   hasCredentials,
 } from "./credentials.js";
-import sharp from "sharp";
+import { probeImageDimensions } from "../compat/image-metadata.js";
 import * as fs from "fs";
 
 let apiInstance: API | null = null;
@@ -18,11 +18,11 @@ export type QrCallback = (event: LoginQRCallbackEvent) => unknown;
 
 async function imageMetadataGetter(filePath: string) {
   const data = await fs.promises.readFile(filePath);
-  const metadata = await sharp(data).metadata();
+  const metadata = probeImageDimensions(data);
   return {
-    height: metadata.height || 0,
-    width: metadata.width || 0,
-    size: metadata.size || data.length,
+    height: metadata?.height || 0,
+    width: metadata?.width || 0,
+    size: data.length,
   };
 }
 

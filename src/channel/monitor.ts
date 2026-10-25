@@ -24,7 +24,7 @@ import { getApi, getCurrentUid } from "../client/zalo-client.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import sharp from "sharp";
+import { readImageDimensions } from "../compat/image-metadata.js";
 import { downloadImageFromUrl } from "./image-downloader.js";
 import { downloadFileFromUrl } from "./file-downloader.js";
 import { addPendingRequest, removePendingRequest } from "../client/friend-request-store.js";
@@ -628,7 +628,10 @@ async function filterAttachableMediaPaths(paths: string[]): Promise<string[]> {
 
   for (const filePath of paths) {
     try {
-      const metadata = await sharp(filePath).metadata();
+      const metadata = await readImageDimensions(filePath);
+      // sharp used to throw for non-image bytes; preserve that so the catch
+      // below keeps rejecting HTML/error pages disguised as image files.
+      if (!metadata) throw new Error("not a recognised image");
       if (metadata.width && metadata.height) {
         const minSide = Math.min(metadata.width, metadata.height);
         const maxSide = Math.max(metadata.width, metadata.height);
