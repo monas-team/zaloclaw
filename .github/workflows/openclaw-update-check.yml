@@ -1,0 +1,98 @@
+name: OpenClaw update check
+
+# Safe auto-update: DETECT a new OpenClaw stable, run the full compat gate
+# against it, and open a PR with the result. This workflow never bumps
+# production and never merges by itself. A human merges the PR, then follows
+# docs/UPGRADE.md (canary on a secondary Zalo account first).
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  detect-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Resolve pinned vs latest
+        id: ver
+        run: |
+          PINNED=$(node -p "require('./package.json').openclaw.build.openclawVersion")
+          LATEST=$(npm view openclaw version)
+          echo "pinned=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "pinned=$PINNED latest=$LATEST"
+
+      - name: Nothing to do
+        if: steps.ver.outputs.pinned == steps.ver.outputs.latest
+        run: echo "already on latest stable"
+
+      - name: Install deps + candidate OpenClaw
+        if: steps.ver.outputs.pinned != steps.ver.outputs.latest
+        run: |
+          npm ci
+          npm install --no-save "openclaw@${{ steps.ver.outputs.latest }}"
+
+      - name: Run compat gate against candidate
+        if: steps.ver.outputs.pinned != steps.ver.outputs.latest
+        id: gate
+        continue-on-error: true
+        run: node scripts/compat-check.mjs 2>&1 | tee gate.log
+
+      - name: Bump pins if gate passed
+        if: steps.ver.outputs.pinned != steps.ver.outputs.latest && steps.gate.outcome == 'success'
+        run: |
+          V="${{ steps.ver.outputs.latest }}"
+          node -e '
+            const fs=require("fs"); const v=process.argv[1];
+            const p=JSON.parse(fs.readFileSync("package.json","utf8"));
+            p.openclaw.compat.pluginApi=">="+v; p.openclaw.compat.minGatewayVersion=v;
+            p.openclaw.build.openclawVersion=v; p.openclaw.build.pluginSdkVersion=v;
+            p.peerDependencies.openclaw=">="+v;
+            fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n");
+            const m=JSON.parse(fs.readFileSync("openclaw.plugin.json","utf8"));
+            m.compat={pluginApi:">="+v,minGatewayVersion:v};
+            fs.writeFileSync("openclaw.plugin.json", JSON.stringify(m,null,2)+"\n");
+          ' "$V"
+          sed -i "s/^- \"2026\.[0-9]*\.[0-9]*\"$/- \"$V\"/" .github/workflows/ci.yml || true
+
+      - name: Open PR
+        if: steps.ver.outputs.pinned != steps.ver.outputs.latest
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: deps/openclaw-${{ steps.ver.outputs.latest }}
+          title: "deps: OpenClaw ${{ steps.ver.outputs.pinned }} → ${{ steps.ver.outputs.latest }} (gate: ${{ steps.gate.outcome }})"
+          commit-message: "deps: evaluate OpenClaw ${{ steps.ver.outputs.latest }} (compat gate ${{ steps.gate.outcome }})"
+          labels: dependencies, needs-canary
+          body: |
+            Automated OpenClaw update check.
+
+            | | |
+            |---|---|
+            | Pinned | `${{ steps.ver.outputs.pinned }}` |
+            | Candidate | `${{ steps.ver.outputs.latest }}` |
+            | Compat gate | **${{ steps.gate.outcome }}** |
+
+            <details><summary>gate.log</summary>
+
+            ```
+            $(cat gate.log 2>/dev/null || echo "see workflow run")
+            ```
+            </details>
+
+            **Before merging:**
+            1. If the gate failed, fix `src/compat/openclaw-sdk.ts` first; do not merge a FAIL.
+            2. Run the live checklist in `docs/COMPAT.md` on a *secondary* Zalo test account.
+            3. Follow `docs/UPGRADE.md` (backup, canary, rollback plan).
+
+            This PR does not deploy anything.

@@ -40,3 +40,4 @@ zaloclaw-credentials.json
 *credentials*.json
 *.sqlite*
 .compat-backup/
+.schema-probe-*.mjs
