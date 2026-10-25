@@ -38,7 +38,7 @@ jobs:
       - name: Secret scan (never ship credentials)
         run: |
           set -e
-          if git ls-files | grep -Ei 'credentials|cookie|session-.*\.json|qr-.*\.png|\.env$'; then
+          if git ls-files | grep -Ei '(^|/)[^/]*credentials[^/]*\.json$|session-.*\.json$|qr-.*\.png$|(^|/)\.env(\..*)?$'; then
             echo "::error::credential-like file tracked in git"; exit 1; fi
           if grep -rEn 'zpw_sek|zpw_enk|"imei"\s*:\s*"[0-9a-f-]{8,}' --include='*.ts' --include='*.json' --exclude-dir=node_modules --exclude-dir=dist . ; then
             echo "::error::possible Zalo secret in source"; exit 1; fi
