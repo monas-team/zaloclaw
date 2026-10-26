@@ -144,7 +144,20 @@ async function main() {
 
   const dir = backup();
   log(`backup written to ${dir}`);
-  fs.writeFileSync(CONFIG, JSON.stringify(after, null, 2) + "\n", { mode: 0o600 });
+
+  // Atomic write: temp file → fsync → validate → rename
+  const content = JSON.stringify(after, null, 2) + "\n";
+  const tmpPath = CONFIG + `.migrate-${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmpPath, content, { mode: 0o600 });
+    const fd = fs.openSync(tmpPath, "r");
+    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    JSON.parse(fs.readFileSync(tmpPath, "utf8"));
+    fs.renameSync(tmpPath, CONFIG);
+  } catch (writeErr) {
+    try { fs.unlinkSync(tmpPath); } catch {}
+    fail(`atomic write failed: ${writeErr.message}. Original config is untouched.`);
+  }
   log("openclaw.json updated. Rollback: node scripts/migrate-config.mjs --rollback " + dir);
 }
 
