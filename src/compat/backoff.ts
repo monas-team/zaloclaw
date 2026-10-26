@@ -54,10 +54,66 @@ export class ReconnectBackoff {
   }
 }
 
-/** Errors that mean "credentials are dead" — retrying will not help. */
-export function isAuthFailure(err: unknown): boolean {
+export type ErrorCategory =
+  | "auth_expired"
+  | "unauthorized"
+  | "forbidden"
+  | "rate_limit"
+  | "waf_block"
+  | "network"
+  | "server"
+  | "unknown";
+
+export function classifyError(err: unknown): ErrorCategory {
   const msg = err instanceof Error ? err.message : String(err);
-  return /not authenticated|login with qr|session.*(expired|invalid)|unauthori[sz]ed|\b401\b|\b403\b|invalid.*cookie|checkpoint|account.*(locked|banned|blocked)/i.test(
-    msg,
-  );
+  const lower = msg.toLowerCase();
+
+  // Definite auth/session death
+  if (/not authenticated|login with qr|session.*(expired|invalid)|invalid.*cookie|checkpoint|account.*(locked|banned|blocked)/i.test(msg)) {
+    return "auth_expired";
+  }
+
+  // HTTP 401 — credentials rejected
+  if (/\b401\b/.test(msg) || /unauthori[sz]ed/i.test(msg)) {
+    return "unauthorized";
+  }
+
+  // Rate limit (429 or explicit rate-limit language)
+  if (/\b429\b|rate.?limit|too many requests|throttl/i.test(msg)) {
+    return "rate_limit";
+  }
+
+  // WAF / temporary block (Zalo anti-abuse, Cloudflare, etc.)
+  if (/waf|captcha|challenge|temporary.*block|access.*denied.*temporarily/i.test(msg)) {
+    return "waf_block";
+  }
+
+  // HTTP 403 — could be endpoint-level permission, not necessarily dead session
+  if (/\b403\b|forbidden/i.test(msg)) {
+    return "forbidden";
+  }
+
+  // Server errors (5xx)
+  if (/\b5\d{2}\b|internal server|bad gateway|service unavailable|gateway timeout/i.test(msg)) {
+    return "server";
+  }
+
+  // Network errors
+  if (/ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ENETUNREACH|EPIPE|socket hang up|network|dns/i.test(msg)) {
+    return "network";
+  }
+
+  return "unknown";
+}
+
+/** True only for errors where credentials are definitively dead — retrying will not help. */
+export function isAuthFailure(err: unknown): boolean {
+  const cat = classifyError(err);
+  return cat === "auth_expired" || cat === "unauthorized";
+}
+
+/** True for transient errors where retry with backoff is appropriate. */
+export function isRetryable(err: unknown): boolean {
+  const cat = classifyError(err);
+  return cat === "network" || cat === "server" || cat === "rate_limit" || cat === "waf_block" || cat === "forbidden" || cat === "unknown";
 }
