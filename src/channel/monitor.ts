@@ -21,7 +21,7 @@ import { ThreadType, FriendEventType, Reactions, type API, type Message, type Us
 import type { ResolvedZaloClawAccount, ZaloClawFriend, ZaloClawGroup, ZaloClawMessage } from "../runtime/types.js";
 import { getZaloClawRuntime } from "../runtime/runtime.js";
 import { sendMessageZaloClaw } from "./send.js";
-import { getApi, getCurrentUid } from "../client/zalo-client.js";
+import { getApi, getApiSync, getCurrentUid } from "../client/zalo-client.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
@@ -1485,6 +1485,7 @@ export async function monitorZaloClawProvider(
     stopped = true;
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
+    try { getApiSync()?.listener.stop(); } catch {}
     resolveRunning?.();
   };
 
@@ -1498,7 +1499,7 @@ export async function monitorZaloClawProvider(
       const selfUid = getCurrentUid() ?? api.getOwnId();
       if (listenersRegistered) {
         try { api.listener.stop(); } catch {}
-        api.listener.start({ retryOnClose: true });
+        api.listener.start({ retryOnClose: false });
         return;
       }
       listenersRegistered = true;
@@ -1675,9 +1676,6 @@ export async function monitorZaloClawProvider(
         runtime.log?.(`[${account.accountId}] listener closed: code=${code} reason=${reason}`);
         if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
         if (stopped || abortSignal.aborted) { resolveRunning?.(); return; }
-        // zca-js retries a bounded number of times on its own for known codes.
-        // When it stops (unknown code / retries exhausted) we take over with
-        // exponential backoff instead of the old fixed 10s loop.
         if (restartTimer) return;
         scheduleRestart(`listener closed (code=${code})`);
       });
@@ -1687,7 +1685,7 @@ export async function monitorZaloClawProvider(
         logVerbose(core, runtime, `[${account.accountId}] listener connected`);
       });
 
-      api.listener.start({ retryOnClose: true });
+      api.listener.start({ retryOnClose: false });
 
       // KeepAlive heartbeat
       const keepaliveDuration = api.getContext().settings?.keepalive?.keepalive_duration;
