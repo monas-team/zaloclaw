@@ -21,7 +21,7 @@
 
 | Yêu cầu | Phiên bản |
 |---------|-----------|
-| [OpenClaw](https://openclaw.ai) | ≥ 2026.5.7 |
+| [OpenClaw](https://openclaw.ai) | ≥ 2026.10.7 |
 | Node.js | ≥ 22 |
 | Tài khoản Zalo | Cá nhân (không phải OA) |
 | OS | Linux / macOS / Windows (WSL2) |

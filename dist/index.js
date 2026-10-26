@@ -1,7 +1,12 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -1507,7 +1512,7 @@ __export(monitor_exports, {
   _processedMsgIds: () => processedMsgIds,
   monitorZaloClawProvider: () => monitorZaloClawProvider
 });
-import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-outbound";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
 import { ThreadType as ThreadType2, FriendEventType, Reactions } from "zca-js";
@@ -2296,7 +2301,6 @@ ${fileLines}]`;
       isDirect: !isGroup,
       isGroup,
       isMentionableGroup: isGroup,
-      requireMention: false,
       canDetectMention: false,
       effectiveWasMentioned: true,
       shouldBypassMention: true
@@ -2931,7 +2935,7 @@ var init_monitor = __esm({
 });
 
 // index.ts
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/plugin-entry";
 
 // src/channel/channel.ts
 import {
@@ -3007,7 +3011,7 @@ import {
   GroupPolicySchema,
   MarkdownConfigSchema
 } from "openclaw/plugin-sdk/channel-config-primitives";
-import { ToolPolicySchema } from "openclaw/plugin-sdk/agent-config-primitives";
+import { ToolPolicySchema } from "openclaw/plugin-sdk/channel-config-schema";
 import { z } from "zod";
 var ZaloGroupConfigSchema = z.object({
   /** Whether this group is enabled for the bot. */

@@ -8,7 +8,7 @@ Connect your personal Zalo account to an AI agent with **153 actions**.
 
 [![npm](https://img.shields.io/npm/v/zaloclaw?color=CB3837&logo=npm)](https://www.npmjs.com/package/zaloclaw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.5.7-7C3AED)](https://openclaw.ai)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.10.7-7C3AED)](https://openclaw.ai)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs)](https://nodejs.org/)
 
 [Tham gia Zalo Group hỗ trợ](https://zalo.me/g/7m1vdtigpwvfpbee4rjz) · [Xem đầy đủ 153 actions](docs/actions.md) · [Hướng dẫn cài đặt](docs/guide.md)
@@ -23,7 +23,7 @@ Connect your personal Zalo account to an AI agent with **153 actions**.
 
 ## Yêu cầu
 
-- OpenClaw ≥ 2026.5.7
+- OpenClaw ≥ 2026.10.7
 - Node.js ≥ 22
 - Tài khoản Zalo cá nhân (không phải OA)
 

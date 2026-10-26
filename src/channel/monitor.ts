@@ -1,6 +1,6 @@
-import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig, MarkdownTableMode } from "openclaw/plugin-sdk/config-contracts";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
-import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createReplyPrefixOptions, createTypingCallbacks } from "openclaw/plugin-sdk/channel-outbound";
 import { logTypingFailure, logAckFailure } from "openclaw/plugin-sdk/channel-feedback";
 import { mergeAllowlist, summarizeMapping } from "openclaw/plugin-sdk/allow-from";
 
@@ -788,7 +788,12 @@ async function processMessage(
       ? await core.channel.pairing.readAllowFromStore({ channel: "zaloclaw", accountId: account.accountId }).catch(() => [])
       : [];
   const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom];
-  const useAccessGroups = config.commands?.useAccessGroups !== false;
+  // OpenClaw 2026.10.7 removed commands.useAccessGroups from CommandsConfig
+  // (its default was true). Read the raw key so a hand-written config that
+  // still carries an explicit false is not silently dropped.
+  const useAccessGroups =
+    (config.commands as { useAccessGroups?: boolean } | undefined)
+      ?.useAccessGroups !== false;
   const senderAllowedForCommands = isSenderAllowed(senderId, effectiveAllowFrom);
   const commandAuthorized = shouldComputeAuth
     ? core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
@@ -1072,7 +1077,6 @@ async function processMessage(
         isDirect: !isGroup,
         isGroup,
         isMentionableGroup: isGroup,
-        requireMention: false,
         canDetectMention: false,
         effectiveWasMentioned: true,
         shouldBypassMention: true,

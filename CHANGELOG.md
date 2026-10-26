@@ -4,6 +4,20 @@ Tất cả thay đổi đáng chú ý của dự án được ghi lại trong fi
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Thay đổi có thể phá vỡ (breaking)
+- **Yêu cầu OpenClaw tối thiểu tăng lên 2026.10.7** — `peerDependencies`, `openclaw.compat.pluginApi`/`minGatewayVersion` và `openclaw.build` đều chuyển từ 2026.5.7 lên 2026.10.7. Gateway cũ hơn 2026.10.7 không còn được hỗ trợ.
+
+### Sửa đổi
+- **SDK subpath đã gỡ ở OpenClaw 2026.10.7** — `openclaw/plugin-sdk/config-runtime` → `config-contracts`, `channel-reply-pipeline` → `channel-outbound`, `agent-config-primitives` (ToolPolicySchema) → `channel-config-schema`. `AckReactionGateParams` không còn field `requireMention` (đã bỏ, vì `shouldBypassMention: true` vốn đã bypass); `commands.useAccessGroups` không còn trong `CommandsConfig` nên code đọc raw key nếu config viết tay còn mang nó, mặc định true như trước.
+- **plugin-inspector `legacy-root-sdk-import` đã hết** — `index.ts` chuyển từ bare `openclaw/plugin-sdk` sang `openclaw/plugin-sdk/plugin-entry` (nơi export cả `AnyAgentTool`, `OpenClawPluginApi`, `emptyPluginConfigSchema` ở 2026.10.7).
+- **Test đường lỗi mới** — `tests/error-paths.test.ts` và `tests/error-paths-api-failure.test.ts` (thiếu credential, gửi tin thất bại, tải media/file CDN 404/403, config hỏng, dedup và quote file params+title).
+
+### Lưu ý
+- `package-lock.json` được regenerate bằng `npm install` (lock cũ còn ở 2.5.8 / openclaw 2026.6.5) nên diff lớn; nội dung code không đổi vì lock.
+- sharp giữ nguyên, không đổi hành vi lọc media: sharp 0.33.5 load và tạo ảnh được trên Node 24.22.1 ở môi trường kiểm chứng, các test media dùng sharp đều pass.
+
 ## [2.5.11] — 2026-07-25
 
 ### Sửa lỗi
