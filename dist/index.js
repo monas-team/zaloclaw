@@ -1,7 +1,12 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -668,11 +673,35 @@ var init_group_id_cache = __esm({
 });
 
 // src/compat/backoff.ts
-function isAuthFailure(err) {
+function classifyError(err) {
   const msg = err instanceof Error ? err.message : String(err);
-  return /not authenticated|login with qr|session.*(expired|invalid)|unauthori[sz]ed|\b401\b|\b403\b|invalid.*cookie|checkpoint|account.*(locked|banned|blocked)/i.test(
-    msg
-  );
+  const lower = msg.toLowerCase();
+  if (/not authenticated|login with qr|session.*(expired|invalid)|invalid.*cookie|checkpoint|account.*(locked|banned|blocked)/i.test(msg)) {
+    return "auth_expired";
+  }
+  if (/\b401\b/.test(msg) || /unauthori[sz]ed/i.test(msg)) {
+    return "unauthorized";
+  }
+  if (/\b429\b|rate.?limit|too many requests|throttl/i.test(msg)) {
+    return "rate_limit";
+  }
+  if (/waf|captcha|challenge|temporary.*block|access.*denied.*temporarily/i.test(msg)) {
+    return "waf_block";
+  }
+  if (/\b403\b|forbidden/i.test(msg)) {
+    return "forbidden";
+  }
+  if (/\b5\d{2}\b|internal server|bad gateway|service unavailable|gateway timeout/i.test(msg)) {
+    return "server";
+  }
+  if (/ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ENETUNREACH|EPIPE|socket hang up|network|dns/i.test(msg)) {
+    return "network";
+  }
+  return "unknown";
+}
+function isAuthFailure(err) {
+  const cat = classifyError(err);
+  return cat === "auth_expired" || cat === "unauthorized";
 }
 var ReconnectBackoff;
 var init_backoff = __esm({
@@ -2808,6 +2837,10 @@ async function monitorZaloClawProvider(options) {
       clearInterval(keepAliveTimer);
       keepAliveTimer = null;
     }
+    try {
+      getApiSync()?.listener.stop();
+    } catch {
+    }
     resolveRunning?.();
   };
   let listenersRegistered = false;
@@ -2825,7 +2858,7 @@ async function monitorZaloClawProvider(options) {
           api.listener.stop();
         } catch {
         }
-        api.listener.start({ retryOnClose: true });
+        api.listener.start({ retryOnClose: false });
         return;
       }
       listenersRegistered = true;
@@ -2987,7 +3020,7 @@ async function monitorZaloClawProvider(options) {
         backoff.reset();
         logVerbose(core, runtime2, `[${account.accountId}] listener connected`);
       });
-      api.listener.start({ retryOnClose: true });
+      api.listener.start({ retryOnClose: false });
       const keepaliveDuration = api.getContext().settings?.keepalive?.keepalive_duration;
       if (keepaliveDuration && keepaliveDuration > 0) {
         const intervalMs = keepaliveDuration * 1e3;
@@ -4354,10 +4387,11 @@ import {
 } from "zca-js";
 
 // src/config/config-manager.ts
-import { readFileSync as readFileSync6, writeFileSync as writeFileSync6 } from "node:fs";
+import { readFileSync as readFileSync6, writeFileSync as writeFileSync6, copyFileSync, renameSync as renameSync2, existsSync as existsSync8, chmodSync as chmodSync2, openSync, fsyncSync, closeSync, unlinkSync as unlinkSync6 } from "node:fs";
 import { homedir as homedir6 } from "node:os";
-import { join as join8 } from "node:path";
+import { join as join8, dirname as dirname4 } from "node:path";
 var DEFAULT_CONFIG_PATH = join8(homedir6(), ".openclaw", "openclaw.json");
+var BACKUP_SUFFIX = ".bak";
 function readOpenClawConfig(configPath = DEFAULT_CONFIG_PATH) {
   try {
     const content = readFileSync6(configPath, "utf-8");
@@ -4367,11 +4401,39 @@ function readOpenClawConfig(configPath = DEFAULT_CONFIG_PATH) {
   }
 }
 function writeOpenClawConfig(config, configPath = DEFAULT_CONFIG_PATH) {
+  const content = JSON.stringify(config, null, 2) + "\n";
   try {
-    const content = JSON.stringify(config, null, 2);
-    writeFileSync6(configPath, content, "utf-8");
+    JSON.parse(content);
   } catch (err) {
-    throw new Error(`Failed to write config: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Config serialization produced invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const dir = dirname4(configPath);
+  const tmpPath = join8(dir, `.zaloclaw-config-${process.pid}-${Date.now()}.tmp`);
+  try {
+    if (existsSync8(configPath)) {
+      const bakPath = configPath + BACKUP_SUFFIX;
+      copyFileSync(configPath, bakPath);
+      try {
+        chmodSync2(bakPath, 384);
+      } catch {
+      }
+    }
+    writeFileSync6(tmpPath, content, { mode: 384 });
+    const fd = openSync(tmpPath, "r");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    const verification = readFileSync6(tmpPath, "utf-8");
+    JSON.parse(verification);
+    renameSync2(tmpPath, configPath);
+  } catch (err) {
+    try {
+      unlinkSync6(tmpPath);
+    } catch {
+    }
+    throw new Error(`Failed to write config atomically: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 function getZaloClawConfig(config) {
