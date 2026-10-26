@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { ThreadType } from "zca-js";
-import sharp from "sharp";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import * as zlib from "zlib";
 import {
   _convertToZaloClawMessage as convertToZaloClawMessage,
   _filterAttachableMediaPaths as filterAttachableMediaPaths,
@@ -34,16 +34,40 @@ function fakeUserMessageWithQuote(content: unknown, quote: Record<string, unknow
   return msg;
 }
 
+function crc32(buf: Buffer): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const typeData = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(typeData));
+  return Buffer.concat([len, typeData, crc]);
+}
+
+function createPngBuffer(width: number, height: number): Buffer {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+  const rawRow = Buffer.alloc(1 + width * 3, 0xff); // filter byte 0 + white pixels
+  rawRow[0] = 0;
+  const raw = Buffer.concat(Array.from({ length: height }, () => rawRow));
+  const compressed = zlib.deflateSync(raw);
+  return Buffer.concat([sig, pngChunk("IHDR", ihdr), pngChunk("IDAT", compressed), pngChunk("IEND", Buffer.alloc(0))]);
+}
+
 async function createImage(width: number, height: number): Promise<string> {
   const filePath = path.join(os.tmpdir(), `zaloclaw-media-${width}x${height}-${Date.now()}-${Math.random()}.png`);
-  await sharp({
-    create: {
-      width,
-      height,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  }).png().toFile(filePath);
+  fs.writeFileSync(filePath, createPngBuffer(width, height));
   tempFiles.push(filePath);
   return filePath;
 }
