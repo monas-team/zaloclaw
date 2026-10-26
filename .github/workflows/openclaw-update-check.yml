@@ -53,18 +53,52 @@ jobs:
         if: steps.ver.outputs.pinned != steps.ver.outputs.latest && steps.gate.outcome == 'success'
         run: |
           V="${{ steps.ver.outputs.latest }}"
+          # Derive bounded range: >=V <next_minor
+          MINOR=$(echo "$V" | sed 's/\.[0-9]*$//')
+          NEXT_MINOR=$(echo "$MINOR" | awk -F. '{printf "%s.%d.0", $1, $2+1}')
           node -e '
-            const fs=require("fs"); const v=process.argv[1];
+            const fs=require("fs"); const v=process.argv[1]; const bound=process.argv[2];
+            const range=">="+v+" <"+bound;
             const p=JSON.parse(fs.readFileSync("package.json","utf8"));
-            p.openclaw.compat.pluginApi=">="+v; p.openclaw.compat.minGatewayVersion=v;
+            p.openclaw.compat.pluginApi=range; p.openclaw.compat.minGatewayVersion=v;
             p.openclaw.build.openclawVersion=v; p.openclaw.build.pluginSdkVersion=v;
-            p.peerDependencies.openclaw=">="+v;
+            p.peerDependencies.openclaw=range;
             fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n");
             const m=JSON.parse(fs.readFileSync("openclaw.plugin.json","utf8"));
-            m.compat={pluginApi:">="+v,minGatewayVersion:v};
+            m.compat={pluginApi:range,minGatewayVersion:v};
             fs.writeFileSync("openclaw.plugin.json", JSON.stringify(m,null,2)+"\n");
+          ' "$V" "$NEXT_MINOR"
+          # Update CI matrix pinned version (YAML indent-aware)
+          node -e '
+            const fs=require("fs"); const v=process.argv[1];
+            let ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
+            ci=ci.replace(/(openclaw:\n\s+- ")[^"]+(")/,"\$1"+v+"\$2");
+            fs.writeFileSync(".github/workflows/ci.yml",ci);
           ' "$V"
-          sed -i "s/^- \"2026\.[0-9]*\.[0-9]*\"$/- \"$V\"/" .github/workflows/ci.yml || true
+          # Update docs/COMPAT.md pinned target
+          node -e '
+            const fs=require("fs"); const v=process.argv[1]; const bound=process.argv[2];
+            const range=">="+v+" <"+bound;
+            let md=fs.readFileSync("docs/COMPAT.md","utf8");
+            md=md.replace(/OpenClaw stable verified \| [^\n]+/,"OpenClaw stable verified | "+v);
+            md=md.replace(/pluginApi.*\| [^\n]+/,"pluginApi`) | "+range);
+            md=md.replace(/minGatewayVersion.*\| [^\n]+/,"minGatewayVersion`) | "+v);
+            fs.writeFileSync("docs/COMPAT.md",md);
+          ' "$V" "$NEXT_MINOR"
+
+      - name: Read gate log
+        if: steps.ver.outputs.pinned != steps.ver.outputs.latest
+        id: gatelog
+        run: |
+          if [ -f gate.log ]; then
+            # Escape for GH Actions multiline output
+            LOG=$(cat gate.log)
+            echo "content<<GATELOG_EOF" >> "$GITHUB_OUTPUT"
+            echo "$LOG" >> "$GITHUB_OUTPUT"
+            echo "GATELOG_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "content=see workflow run" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Open PR
         if: steps.ver.outputs.pinned != steps.ver.outputs.latest
@@ -86,7 +120,7 @@ jobs:
             <details><summary>gate.log</summary>
 
             ```
-            $(cat gate.log 2>/dev/null || echo "see workflow run")
+            ${{ steps.gatelog.outputs.content }}
             ```
             </details>
 

@@ -13,7 +13,7 @@ account.
 | Field | Value |
 |---|---|
 | OpenClaw stable verified | 2026.10.7 |
-| Plugin SDK min (`openclaw.compat.pluginApi`) | >=2026.10.7 |
+| Plugin SDK range (`openclaw.compat.pluginApi`) | >=2026.10.7 <2026.11.0 |
 | Gateway min (`openclaw.compat.minGatewayVersion`) | 2026.10.7 |
 | zca-js | 2.1.2 (pinned exact; 2.2.0 available, not yet evaluated) |
 | Node | >=22 (tested on 24) |
@@ -57,7 +57,7 @@ other file imports a moved subpath directly.
 
 | Case | Result | Date | Notes |
 |---|---|---|---|
-| Login via QR, session persisted | PASS (login only) | 2026-10-25 | QR login OK; persistence across restart still NOT RUN |
+| Login via QR, session persisted | PASS | 2026-10-25 / 2026-10-26 | QR login 2026-10-25; session survived 3 gateway restarts on 2026-10-26 without rescan |
 | Existing 2.5.x session file accepted after migration | NOT RUN | | credentials format unchanged; needs live confirm |
 | Receive/send text DM | PASS (manual, screenshot) | 2026-10-25 | two-way, evidence is user screenshot only, not in gateway logs; earlier failure was empty allowFrom, not session/listener |
 | Receive/send text group (mention gating) | PASS (basic) | 2026-10-25 | trigger-only mention received in test group after groupPolicy/groups set |
@@ -67,7 +67,7 @@ other file imports a moved subpath directly.
 | Send/receive file | NOT RUN | | |
 | Long text, Unicode, emoji | NOT RUN | | |
 | Reconnect after network loss | NOT RUN | | new backoff path |
-| Reconnect after gateway restart | NOT RUN | | provider restarted 20:26 + hot-reload 20:27:52 and kept receiving, but controlled restart (no QR rescan + DM probe) not done |
+| Reconnect after gateway restart | PASS (log-verified) | 2026-10-26 | 3 gateway restarts 07:27, 07:35, 07:37; provider restarted each time, no QR/not-logged-in lines; group mention received after |
 | Duplicate / out-of-order / broken media | NOT RUN | | |
 | 24h soak | NOT RUN | | |
 

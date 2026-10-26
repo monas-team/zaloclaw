@@ -66,7 +66,7 @@ ok("build + import smoke", smokePass, smokeDetail);
 
 // 5. no native addon deps
 const bundle = fs.existsSync(path.join(root, "dist", "index.js")) ? fs.readFileSync(path.join(root, "dist", "index.js"), "utf8") : "";
-ok("no native addon imports", !/from\s+"sharp"|require\("sharp"\)/.test(bundle));
+ok("no sharp import (native addon guard)", !/from\s+"sharp"|require\("sharp"\)/.test(bundle));
 
 const pass = results.every((r) => r.pass);
 const pluginVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;

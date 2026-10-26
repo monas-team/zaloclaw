@@ -35,7 +35,7 @@
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.10.7",
+      "pluginApi": ">=2026.10.7 <2026.11.0",
       "minGatewayVersion": "2026.10.7"
     },
     "build": {
@@ -63,7 +63,7 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.10.7"
+    "openclaw": ">=2026.10.7 <2026.11.0"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",

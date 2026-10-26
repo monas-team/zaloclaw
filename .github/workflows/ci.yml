@@ -59,7 +59,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci && npm install --no-save openclaw@2026.10.7
+      - run: |
+          OC_VER=$(node -p "require('./package.json').openclaw.build.openclawVersion")
+          npm ci && npm install --no-save "openclaw@$OC_VER"
       - run: npm run build
       - name: Pack + checksum
         run: |

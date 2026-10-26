@@ -440,7 +440,7 @@
     "onStartup": true
   },
   "compat": {
-    "pluginApi": ">=2026.10.7",
+    "pluginApi": ">=2026.10.7 <2026.11.0",
     "minGatewayVersion": "2026.10.7"
   }
 }
